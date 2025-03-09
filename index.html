@@ -352,6 +352,39 @@
             min-width: 0;
             word-break: break-all;
         }
+
+        /* 添加折叠/展开图标的样式 */
+        .collapse-icon {
+            display: inline-block;
+            margin-right: 8px;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.3s;
+        }
+
+        /* 地点行的鼠标样式 */
+        .location-item {
+            cursor: pointer;
+        }
+
+        /* 地点行hover效果 */
+        .location-item:hover {
+            background-color: #fff3cd;
+        }
+
+        /* 资产行的样式 */
+        .asset-item {
+            transition: all 0.3s ease;
+        }
+
+        /* 按钮不继承父元素的cursor */
+        .action-btn {
+            cursor: pointer;
+        }
+
+        .button-container {
+            cursor: default;
+        }
     </style>
 </head>
 <body>
@@ -550,19 +583,61 @@
             };
         };
 
-        // 修改refreshList函数中的删除按钮事件监听
+        // 修改 refreshList 函数，添加默认收起模板资产的逻辑
         function refreshList() {
-            dataList.innerHTML = items.map((item, index) => 
-                `<div class="list-item ${item.startsWith('@') ? 'location-item' : ''}">
-                    <div class="item-text">${item}</div>
-                    <div class="button-container">
-                        <button class="action-btn edit-btn" data-index="${index}">编辑</button>
-                        <button class="action-btn delete-btn" data-index="${index}">删除</button>
-                    </div>
-                </div>`
-            ).join('');
+            let currentLocationIndex = -1;
+            
+            dataList.innerHTML = items.map((item, index) => {
+                if (item.startsWith('@')) {
+                    currentLocationIndex = index;
+                    return `<div class="list-item location-item" data-location-index="${index}">
+                        <div class="item-text">
+                            <span class="collapse-icon">${index === 0 ? '▶' : '▼'}</span> ${item}
+                        </div>
+                        <div class="button-container">
+                            <button class="action-btn edit-btn" data-index="${index}">编辑</button>
+                            <button class="action-btn delete-btn" data-index="${index}">删除</button>
+                        </div>
+                    </div>`;
+                } else {
+                    return `<div class="list-item asset-item" data-belongs-to="${currentLocationIndex}" 
+                        style="${currentLocationIndex === 0 ? 'display: none;' : ''}">
+                        <div class="item-text">${item}</div>
+                        <div class="button-container">
+                            <button class="action-btn edit-btn" data-index="${index}">编辑</button>
+                            <button class="action-btn delete-btn" data-index="${index}">删除</button>
+                        </div>
+                    </div>`;
+                }
+            }).join('');
 
-            // 添加编辑按钮事件监听
+            // 添加地点行的点击事件
+            const locationItems = document.querySelectorAll('.location-item');
+            locationItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    // 如果点击的是按钮，不触发折叠/展开
+                    if (e.target.classList.contains('action-btn')) {
+                        return;
+                    }
+                    
+                    const locationIndex = parseInt(item.getAttribute('data-location-index'));
+                    const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                    const collapseIcon = item.querySelector('.collapse-icon');
+                    
+                    // 切换资产显示状态
+                    assets.forEach(asset => {
+                        if (asset.style.display === 'none') {
+                            asset.style.display = 'flex';
+                            collapseIcon.textContent = '▼';
+                        } else {
+                            asset.style.display = 'none';
+                            collapseIcon.textContent = '▶';
+                        }
+                    });
+                });
+            });
+
+            // 保留原有的编辑和删除按钮事件监听
             const editButtons = document.querySelectorAll('.edit-btn');
             editButtons.forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -573,7 +648,6 @@
                 });
             });
 
-            // 修改删除按钮事件监听，添加确认弹窗
             const deleteButtons = document.querySelectorAll('.delete-btn');
             deleteButtons.forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -709,14 +783,36 @@
             }
         }
 
-        // 添加导出TXT文件的函数
+        // 导出TXT文件的函数
         function exportToTxt() {
             if (items.length === 0) {
                 showErrorToast('没有数据可导出！');
                 return;
             }
 
-            const content = items.join('\n');
+            // 找到第二个@开头的行的索引
+            let startIndex = -1;
+            let foundFirst = false;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].startsWith('@')) {
+                    if (!foundFirst) {
+                        foundFirst = true;
+                    } else {
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // 如果没有找到第二个@行，说明只有模板数据
+            if (startIndex === -1) {
+                showErrorToast('没有可导出的数据！');
+                return;
+            }
+
+            // 只导出从第二个@行开始的数据
+            const exportItems = items.slice(startIndex);
+            const content = exportItems.join('\n');
             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             
@@ -732,8 +828,8 @@
             
             showToast('导出成功！');
         }
-
-        // 修改添加按钮为导出TXT功能
+        
+        // 导出TXT功能
         exportButton.addEventListener('click', exportToTxt);
 
         // 修改显示错误提示的函数
