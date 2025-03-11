@@ -292,6 +292,32 @@
             background-color: #007bff;
         }
 
+        #collapseAllButton {
+            position: fixed;
+            right: 20px;
+            bottom: 70px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(108, 117, 125, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 999;
+        }
+
+        #collapseAllButton:hover {
+            background-color: rgba(108, 117, 125, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
         #batchAddButton {
             background-color: #28a745;
         }
@@ -430,6 +456,7 @@
 
     <div id="dataList"></div>
     <button id="backToTop" title="回到顶部">↑</button>
+    <button id="collapseAllButton" title="折叠/展开">▼</button>
     <div class="input-container">
         <input type="text" id="itemInput" placeholder="输入内容并选择建议项...">
         <div id="suggestions"></div>
@@ -483,6 +510,7 @@
         let items = [];
         let currentEditIndex = null;
         let db;
+        let isAllCollapsed = false;
         
         const dataList = document.getElementById('dataList');
         const itemInput = document.getElementById('itemInput');
@@ -502,6 +530,7 @@
         const guideModal = document.getElementById('guideModal');
         const closeGuideButton = document.getElementById('closeGuideButton');
         const backToTop = document.getElementById('backToTop');
+        const collapseAllButton = document.getElementById('collapseAllButton');
 
         // 添加IndexedDB初始化代码
         const initDB = () => {
@@ -1150,6 +1179,34 @@
                 overlay.style.display = 'none';
             }
         });
+
+        // 添加一键折叠/展开函数
+        function toggleAllLocations() {
+            const locationItems = document.querySelectorAll('.location-item');
+            isAllCollapsed = !isAllCollapsed;
+            
+            locationItems.forEach(item => {
+                // 跳过第一个地点（模板资产）
+                if (item.getAttribute('data-location-index') === '0') {
+                    return;
+                }
+                
+                const locationIndex = item.getAttribute('data-location-index');
+                const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                const collapseIcon = item.querySelector('.collapse-icon');
+                
+                assets.forEach(asset => {
+                    asset.style.display = isAllCollapsed ? 'none' : 'flex';
+                });
+                collapseIcon.textContent = isAllCollapsed ? '▶' : '▼';
+            });
+            
+            // 更新按钮图标
+            collapseAllButton.textContent = isAllCollapsed ? '▶' : '▼';
+        }
+
+        // 添加按钮点击事件
+        collapseAllButton.addEventListener('click', toggleAllLocations);
 
         // 初始化数据库并加载数据
         initDB();
