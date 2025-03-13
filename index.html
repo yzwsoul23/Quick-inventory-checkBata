@@ -382,7 +382,7 @@
         /* 添加折叠/展开图标的样式 */
         .collapse-icon {
             display: inline-block;
-            margin-right: 8px;
+            margin-right: 0px;
             cursor: pointer;
             user-select: none;
             transition: transform 0.3s;
@@ -1140,25 +1140,74 @@
             overlay.style.display = 'none';
         });
 
-        // 添加删除全部数据的函数
+        // 修改删除全部数据的函数
         const deleteAllItems = () => {
+            // 找到第二个@开头的行的索引
+            let startIndex = -1;
+            let foundFirst = false;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].startsWith('@')) {
+                    if (!foundFirst) {
+                        foundFirst = true;
+                    } else {
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // 如果没有找到第二个@行，说明只有模板数据
+            if (startIndex === -1) {
+                showErrorToast('没有可删除的数据！');
+                return;
+            }
+
             const transaction = db.transaction(['items'], 'readwrite');
             const store = transaction.objectStore('items');
-            const request = store.clear();
             
-            request.onsuccess = () => {
-                loadItems();
+            // 先获取所有数据
+            const getAllRequest = store.getAll();
+            
+            getAllRequest.onsuccess = () => {
+                // 清空所有数据
+                store.clear().onsuccess = () => {
+                    // 重新添加模板数据（第一个地点及其资产）
+                    const templateItems = items.slice(0, startIndex);
+                    
+                    templateItems.forEach(value => {
+                        store.add({ value });
+                    });
+                    
+                    transaction.oncomplete = () => {
+                        loadItems();
+                        showToast('删除成功！');
+                    };
+                };
             };
         };
 
-        // 添加删除全部按钮的点击事件
+        // 修改删除全部按钮的点击事件
         deleteAllButton.addEventListener('click', () => {
-            if (items.length === 0) {
-                alert('列表已经是空的了');
+            // 找到第二个@开头的行的索引
+            let startIndex = -1;
+            let foundFirst = false;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].startsWith('@')) {
+                    if (!foundFirst) {
+                        foundFirst = true;
+                    } else {
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            if (startIndex === -1) {
+                showErrorToast('没有可删除的数据！');
                 return;
             }
             
-            if (confirm('确定要删除所有数据吗？此操作不可恢复！')) {
+            if (confirm('确定要删除所有数据吗？（模板资产将保留）此操作不可恢复！')) {
                 deleteAllItems();
             }
         });
