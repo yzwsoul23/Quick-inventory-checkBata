@@ -412,18 +412,73 @@
             cursor: default;
         }
 
-        #backToTop {
+        #searchModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 800px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        #searchResults {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .search-result-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .search-result-location {
+            color: #dc3545;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .search-result-asset {
+            color: #28a745;
+            margin-left: 20px;
+        }
+
+        .search-count {
+            color: #007bff;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        #searchButton {
             position: fixed;
             right: 20px;
             bottom: 20px;
             width: 40px;
             height: 40px;
-            background-color: rgba(0, 123, 255, 0.8);
+            background-color: rgba(212, 168, 90, 0.8);
             color: white;
             border: none;
             border-radius: 50%;
             cursor: pointer;
-            display: none;
             justify-content: center;
             align-items: center;
             font-size: 20px;
@@ -432,10 +487,20 @@
             z-index: 999;
         }
 
-        #backToTop:hover {
-            background-color: rgba(0, 123, 255, 1);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        #closeSearchButton {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        #closeSearchButton:hover {
+            background-color: #0056b3;
         }
     </style>
 </head>
@@ -453,9 +518,14 @@
         <textarea id="editAllInput" placeholder="请修改数据，每行一条"></textarea>
         <button id="saveEditAllButton">确认修改</button>
     </div>
+    <div id="searchModal">
+        <input type="text" id="searchInput" placeholder="输入要搜索的资产关键词">
+        <div id="searchResults"></div>
+        <button id="closeSearchButton">关闭</button>
+    </div>
 
     <div id="dataList"></div>
-    <button id="backToTop" title="回到顶部">↑</button>
+    <button id="searchButton" title="搜索资产">🔍</button>
     <button id="collapseAllButton" title="折叠/展开">▼</button>
     <div class="input-container">
         <input type="text" id="itemInput" placeholder="输入内容并选择建议项...">
@@ -529,8 +599,12 @@
         const deleteAllButton = document.getElementById('deleteAllButton');
         const guideModal = document.getElementById('guideModal');
         const closeGuideButton = document.getElementById('closeGuideButton');
-        const backToTop = document.getElementById('backToTop');
         const collapseAllButton = document.getElementById('collapseAllButton');
+        const searchButton = document.getElementById('searchButton');
+        const searchModal = document.getElementById('searchModal');
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+        const closeSearchButton = document.getElementById('closeSearchButton');
 
         // 添加IndexedDB初始化代码
         const initDB = () => {
@@ -1137,6 +1211,7 @@
             importModal.style.display = 'none';
             editAllModal.style.display = 'none';
             guideModal.style.display = 'none';
+            searchModal.style.display = 'none';
             overlay.style.display = 'none';
         });
 
@@ -1225,6 +1300,7 @@
                 importModal.style.display = 'none';
                 editAllModal.style.display = 'none';
                 guideModal.style.display = 'none';
+                searchModal.style.display = 'none';
                 overlay.style.display = 'none';
             }
         });
@@ -1279,23 +1355,74 @@
             }
         });
 
-        // 监听数据列表的滚动事件
-        dataList.addEventListener('scroll', () => {
-            // 当滚动超过300px时显示按钮
-            if (dataList.scrollTop > 300) {
-                backToTop.style.display = 'flex';
-            } else {
-                backToTop.style.display = 'none';
+        // 添加搜索函数
+        function searchAssets(keyword) {
+            if (!keyword.trim()) {
+                searchResults.innerHTML = '<div class="search-count">请输入搜索关键词</div>';
+                return;
             }
+
+            let results = [];
+            let currentLocation = null;
+            let totalCount = 0;
+
+            items.forEach(item => {
+                if (item.startsWith('@')) {
+                    currentLocation = item;
+                } else if (item.toLowerCase().includes(keyword.toLowerCase())) {
+                    results.push({
+                        location: currentLocation,
+                        asset: item
+                    });
+                    totalCount++;
+                }
+            });
+
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="search-count">未找到相关资产</div>';
+                return;
+            }
+
+            // 按地点分组显示结果
+            let html = `<div class="search-count">找到 ${totalCount} 个相关资产</div>`;
+            let currentDisplayLocation = null;
+
+            results.forEach(result => {
+                if (currentDisplayLocation !== result.location) {
+                    if (currentDisplayLocation) {
+                        html += '</div>';
+                    }
+                    currentDisplayLocation = result.location;
+                    html += `
+                        <div class="search-result-item">
+                            <div class="search-result-location">${result.location}</div>
+                    `;
+                }
+                html += `<div class="search-result-asset">${result.asset}</div>`;
+            });
+            html += '</div>';
+
+            searchResults.innerHTML = html;
+        }
+
+        // 添加搜索按钮点击事件
+        searchButton.addEventListener('click', () => {
+            searchModal.style.display = 'block';
+            overlay.style.display = 'block';
+            searchInput.value = '';
+            searchInput.focus();
+            searchResults.innerHTML = '<div class="search-count">请输入搜索关键词</div>';
         });
 
-        // 添加回到顶部按钮的点击事件
-        backToTop.addEventListener('click', () => {
-            // 平滑滚动到顶部
-            dataList.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
+        // 添加搜索输入框事件（实时搜索）
+        searchInput.addEventListener('input', (e) => {
+            searchAssets(e.target.value);
+        });
+
+        // 添加关闭搜索按钮事件
+        closeSearchButton.addEventListener('click', () => {
+            searchModal.style.display = 'none';
+            overlay.style.display = 'none';
         });
     </script>
 </body>
