@@ -623,41 +623,41 @@
         </div>
     </div>
     <div id="guideModal">
-        <div class="guide-content">【快速操作指南】
-        ▋数据录入规范
-        1️⃣ 新增数据行
-        
-        输入内容后按「回车」立即生成新记录
-        支持智能联想：输入关键词（如"办公"）自动匹配历史记录
-        ▋资产盘点流程
-        📍 第一步：创建存放档案
-        格式要求：@地点 负责人 部门
-        范例：@育英楼106 汪正正 教务处
-        ▶️ 提示：此信息将作为直到下一个存放档案出现前的资产归属标识
-        注意：地点名称不可重复，重复时将无法保存
-        
-        📍 第二步：录入资产详情
-        必填字段（空格分隔）：
-        名称 品牌 规格型号
-        选填字段（按需填写）：
-        [出厂日期/新旧程度] [数量] [使用状态]
-        范例：办公椅 黑色皮铁混质 有扶手 3
-        ▶️ 提示：资产详情请按照顺序填写
-        
-        ▋编辑与维护
-        ✅ 单行修改：点击数据行「编辑」按钮进行内容修改
-        ✅ 批量修改：点击「批量修改」按钮，可同时编辑多条数据
-        ✅ 批量添加：点击「批量添加」按钮，可批量添加新数据
-        ✅ 快速删除：点击数据行「删除」按钮可删除该行
-        ✅ 全部删除：点击「删除全部」按钮可清空所有数据
-        
-        ▋数据管理
-        🔗 添加数据：点击「批量添加」，粘贴数据（每行一条）
-        🔗 导出数据：点击「导出TXT」生成文件备份
-        💡 重要提示：
-        1. 地点行（@开头）不允许重复，重复时会显示错误提示
-        2. 建议定期导出数据，避免数据丢失
-        3. 批量修改时请注意保持数据格式一致</div>
+        <div class="guide-content">
+            快速操作指南：
+
+            基本操作：
+            - 在输入框输入内容后点击回车键或按下添加按钮可添加新数据行
+            - 长按任何数据行可复制该行内容
+            - 向左滑动数据行可编辑内容
+            - 向右滑动数据行可删除内容（地点行会同时删除其所有资产）
+            
+            地点管理：
+            - 以@开头的行会自动标记为地点行（黄底红字）
+            - 点击地点行可展开/折叠该地点下的所有资产
+            - 点击地点行右侧的✏️按钮可批量编辑该地点及其所有资产
+            - 相同地点名称不允许重复添加
+            - 第一个地点行"@模板资产"用于存放模板数据，不会被导出
+            
+            批量操作：
+            - 点击"批量添加"可一次性添加多条数据（每行一条）
+            - 点击"批量修改"可编辑全部数据内容
+            - 点击"删除全部"可清空除模板资产外的所有数据
+            - 点击"导出TXT"可将数据（除模板资产外）导出为文本文件
+            
+            辅助功能：
+            - 右下角↑按钮可快速返回列表顶部
+            - 右下角▼/▶按钮可一键折叠/展开所有地点
+            - 右下角🔍按钮可搜索资产，结果按地点分组显示
+            
+            使用技巧：
+            - 每个地点下的资产会自动编号（1. 2. 3. ...）
+            - 批量导入时会自动检查地点是否重复
+            - 长按复制内容可用于快速创建类似条目
+            - 折叠不常用地点可使列表更简洁
+            
+            提示：该应用数据存储在本地浏览器中，清除浏览器数据可能导致信息丢失，建议定期导出备份。
+        </div>
         <button id="closeGuideButton">我知道了</button>
     </div>
 
@@ -908,7 +908,7 @@
                     }
                 });
             });
-            
+
             // 为所有列表项添加滑动事件
             const allListItems = document.querySelectorAll('.list-item');
             allListItems.forEach(item => {
@@ -993,7 +993,7 @@
                                 }
                             } else {
                                 // 普通资产行删除
-                                if (confirm('确定要删除这条记录吗？')) {
+                    if (confirm('确定要删除这条记录吗？')) {
                                     deleteItem(itemIndex);
                                 }
                             }
@@ -1153,10 +1153,79 @@
             };
         }
 
-        // 添加复制到剪贴板的辅助函数
+        // 修改搜索函数，排除模板资产
+        function searchAssets(keyword) {
+            if (!keyword.trim()) {
+                searchResults.innerHTML = '<div class="search-count">请输入搜索关键词</div>';
+                return;
+            }
+
+            let results = [];
+            let currentLocation = null;
+            let totalCount = 0;
+            let firstLocationIndex = -1;
+            let isFirstLocation = true;
+
+            items.forEach((item, index) => {
+                if (item.startsWith('@')) {
+                    currentLocation = item;
+                    
+                    // 记录第一个地点的索引
+                    if (isFirstLocation) {
+                        firstLocationIndex = index;
+                        isFirstLocation = false;
+                    }
+                } else if (item.toLowerCase().includes(keyword.toLowerCase())) {
+                    // 排除第一个地点（模板资产）下的资产
+                    const belongsToFirstLocation = (
+                        firstLocationIndex !== -1 && 
+                        currentLocation === items[firstLocationIndex]
+                    );
+                    
+                    if (!belongsToFirstLocation) {
+                        results.push({
+                            location: currentLocation,
+                            asset: item
+                        });
+                        totalCount++;
+                    }
+                }
+            });
+
+            if (results.length === 0) {
+                searchResults.innerHTML = '<div class="search-count">未找到相关资产</div>';
+                return;
+            }
+
+            // 按地点分组显示结果
+            let html = `<div class="search-count">找到 ${totalCount} 个相关资产</div>`;
+            let currentDisplayLocation = null;
+
+            results.forEach(result => {
+                if (currentDisplayLocation !== result.location) {
+                    if (currentDisplayLocation) {
+                        html += '</div>';
+                    }
+                    currentDisplayLocation = result.location;
+                    html += `
+                        <div class="search-result-item">
+                            <div class="search-result-location">${result.location}</div>
+                    `;
+                }
+                html += `<div class="search-result-asset">${result.asset}</div>`;
+            });
+            html += '</div>';
+
+            searchResults.innerHTML = html;
+        }
+
+        // 修改复制到剪贴板的辅助函数，不复制编号
         function copyToClipboard(text) {
             // 去除文本中的折叠图标符号
             text = text.replace(/[▼▶]/g, '').trim();
+            
+            // 移除资产编号 (如 "1. ", "2. " 等)
+            text = text.replace(/^\d+\.\s+/g, '');
             
             // 创建临时文本区域
             const textarea = document.createElement('textarea');
@@ -1281,18 +1350,18 @@
                 
                 // 使用Promise确保数据保存和加载的顺序
                 new Promise((resolve) => {
-                    saveItem(newItem);
+                saveItem(newItem);
                     resolve();
                 }).then(() => {
-                    itemInput.value = '';
-                    suggestions.style.display = 'none';
+                itemInput.value = '';
+                suggestions.style.display = 'none';
                     itemInput.focus();
-                    
-                    // 等待数据加载完成后滚动到底部并显示提示
-                    setTimeout(() => {
-                        scrollToBottom();
-                        showToast('添加成功！');
-                    }, 100);
+                
+                // 等待数据加载完成后滚动到底部并显示提示
+                setTimeout(() => {
+                    scrollToBottom();
+                    showToast('添加成功！');
+                }, 100);
                 });
             }
         }
@@ -1342,7 +1411,7 @@
             
             showToast('导出成功！');
         }
-        
+
         // 导出TXT功能
         exportButton.addEventListener('click', exportToTxt);
 
@@ -1486,9 +1555,9 @@
         // 修改批量添加函数
         const bulkSaveItems = (values) => {
             return new Promise((resolve) => {  // 返回Promise以处理异步操作
-                const transaction = db.transaction(['items'], 'readwrite');
-                const store = transaction.objectStore('items');
-                
+            const transaction = db.transaction(['items'], 'readwrite');
+            const store = transaction.objectStore('items');
+            
                 // 先获取所有现有数据来检查地点是否重复
                 const getAllRequest = store.getAll();
                 
@@ -1538,7 +1607,7 @@
                     let addedCount = 0;
                     const addItems = values.map(value => {
                         return new Promise((resolve) => {
-                            if (value.trim()) {
+                if (value.trim()) {
                                 const request = store.add({ value: value.trim() });
                                 request.onsuccess = () => {
                                     addedCount++;
@@ -1555,11 +1624,11 @@
                     });
                     
                     Promise.all(addItems).then(() => {
-                        transaction.oncomplete = () => {
-                            loadItems();
+            transaction.oncomplete = () => {
+                loadItems();
                             showToast(`批量添加成功，共添加${addedCount}条数据！`);
                             resolve(true);  // 操作成功完成
-                        };
+            };
                     });
                 };
             });
@@ -1584,12 +1653,12 @@
             
             const success = await bulkSaveItems(importItems);  // 等待操作完成
             if (success) {
-                importModal.style.display = 'none';
-                overlay.style.display = 'none';
-                importInput.value = '';
-                setTimeout(() => {
-                        scrollToBottom();
-                    }, 100);
+            importModal.style.display = 'none';
+            overlay.style.display = 'none';
+            importInput.value = '';
+            setTimeout(() => {
+                scrollToBottom();
+            }, 100);
             }
         });
 
@@ -1643,7 +1712,7 @@
                     });
                     
                     transaction.oncomplete = () => {
-                        loadItems();
+                loadItems();
                         showToast('删除成功！');
                     };
                 };
@@ -1748,56 +1817,6 @@
         // 添加保存按钮事件监听
         saveLocationEditButton.addEventListener('click', saveLocationEdit);
 
-        // 添加搜索函数
-        function searchAssets(keyword) {
-            if (!keyword.trim()) {
-                searchResults.innerHTML = '<div class="search-count">请输入搜索关键词</div>';
-                return;
-            }
-
-            let results = [];
-            let currentLocation = null;
-            let totalCount = 0;
-
-            items.forEach(item => {
-                if (item.startsWith('@')) {
-                    currentLocation = item;
-                } else if (item.toLowerCase().includes(keyword.toLowerCase())) {
-                    results.push({
-                        location: currentLocation,
-                        asset: item
-                    });
-                    totalCount++;
-                }
-            });
-
-            if (results.length === 0) {
-                searchResults.innerHTML = '<div class="search-count">未找到相关资产</div>';
-                return;
-            }
-
-            // 按地点分组显示结果
-            let html = `<div class="search-count">找到 ${totalCount} 个相关资产</div>`;
-            let currentDisplayLocation = null;
-
-            results.forEach(result => {
-                if (currentDisplayLocation !== result.location) {
-                    if (currentDisplayLocation) {
-                        html += '</div>';
-                    }
-                    currentDisplayLocation = result.location;
-                    html += `
-                        <div class="search-result-item">
-                            <div class="search-result-location">${result.location}</div>
-                    `;
-                }
-                html += `<div class="search-result-asset">${result.asset}</div>`;
-            });
-            html += '</div>';
-
-            searchResults.innerHTML = html;
-        }
-
         // 添加搜索按钮点击事件
         searchButton.addEventListener('click', () => {
             searchModal.style.display = 'block';
@@ -1817,44 +1836,6 @@
             searchModal.style.display = 'none';
             overlay.style.display = 'none';
         });
-
-        // 修改指南内容
-        const guideContent = `
-        <h2>快速操作指南</h2>
-
-        <h3>基本操作</h3>
-        • 添加内容：在输入框中输入文本，按回车键添加
-        • 编辑项目：左滑任意行，触发编辑功能
-        • 删除项目：右滑任意行，触发删除功能
-        • 复制内容：长按任意行约1秒，自动复制内容到剪贴板
-
-        <h3>地点与资产管理</h3>
-        • 地点标记：以@符号开头的行被识别为地点行（如：@育英楼106 张三负责）
-        • 折叠/展开：点击地点行可折叠或展开该地点下的所有资产
-        • 批量编辑：点击地点行右侧的✏️按钮，可批量编辑该地点及其所有资产
-        • 删除地点：右滑地点行可一次性删除该地点及其所有资产
-        • 自动编号：每个地点下的资产会自动编号，方便引用
-
-        <h3>批量操作</h3>
-        • 批量添加：点击"批量添加"按钮，可一次性添加多条数据
-        • 批量修改：点击"批量修改"按钮，可编辑修改所有数据
-        • 删除全部：点击"删除全部"按钮，可删除除模板外的所有数据
-        • 导出数据：点击"导出TXT"按钮，导出从第二个地点开始的所有数据
-
-        <h3>便捷功能</h3>
-        • 搜索资产：点击右下角🔍图标，可搜索资产并查看所在地点
-        • 一键折叠：点击右侧悬浮▼按钮，可一键折叠/展开所有地点
-        • 回到顶部：点击右下角↑按钮，快速滚动回列表顶部
-
-        <h3>特别说明</h3>
-        • 第一个地点行(@模板资产)及其资产用作模板，不会被导出
-        • 同名地点不允许添加，系统会自动检查重复
-        • 批量修改和导入时，系统会检查地点重复并提示
-        • 数据自动保存在本地，刷新页面不会丢失
-        `;
-
-        // 更新指南模态框内容
-        document.querySelector('.guide-content').innerHTML = guideContent;
     </script>
 </body>
 </html>
