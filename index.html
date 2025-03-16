@@ -810,6 +810,57 @@
             };
         };
 
+        // 添加删除地点及其资产的函数
+        function deleteLocationAndAssets(locationIndex) {
+            // 确保该索引存在且是地点行
+            if (!items[locationIndex] || !items[locationIndex].startsWith('@')) {
+                return;
+            }
+            
+            // 第一个地点行（模板资产）不允许删除
+            if (locationIndex === 0) {
+                showErrorToast('模板地点不能删除');
+                return;
+            }
+            
+            // 找出所有属于该地点的资产范围
+            let nextLocationIndex = locationIndex + 1;
+            while (nextLocationIndex < items.length && !items[nextLocationIndex].startsWith('@')) {
+                nextLocationIndex++;
+            }
+            
+            // 计算要删除的项目数
+            const deleteCount = nextLocationIndex - locationIndex;
+            
+            const transaction = db.transaction(['items'], 'readwrite');
+            const store = transaction.objectStore('items');
+            
+            // 先获取所有数据
+            const getAllRequest = store.getAll();
+            
+            getAllRequest.onsuccess = () => {
+                const allItems = getAllRequest.result;
+                
+                // 清除store后重新添加数据，跳过要删除的部分
+                store.clear().onsuccess = () => {
+                    // 添加删除前的数据
+                    for (let i = 0; i < locationIndex; i++) {
+                        store.add(allItems[i]);
+                    }
+                    
+                    // 添加删除后的数据
+                    for (let i = locationIndex + deleteCount; i < allItems.length; i++) {
+                        store.add(allItems[i]);
+                    }
+                    
+                    transaction.oncomplete = () => {
+                        loadItems();
+                        showToast(`已删除"${items[locationIndex]}"及其所有资产`);
+                    };
+                };
+            };
+        }
+
         // 修改 refreshList 函数，为每个地点下的资产添加编号
         function refreshList() {
             let currentLocationIndex = -1;
@@ -933,8 +984,18 @@
                     // 执行相应操作
                     if (Math.abs(diffX) > 50) { // 需要滑动50px以上才触发操作
                         if (diffX > 50) { // 右滑 - 删除
-                            if (confirm('确定要删除这条记录吗？')) {
-                                deleteItem(itemIndex);
+                            const itemIndex = parseInt(item.getAttribute('data-index'));
+                            
+                            // 判断是否为地点行
+                            if (item.classList.contains('location-item')) {
+                                if (confirm('确定要删除此地点及其所有资产吗？此操作不可恢复！')) {
+                                    deleteLocationAndAssets(itemIndex);
+                                }
+                            } else {
+                                // 普通资产行删除
+                                if (confirm('确定要删除这条记录吗？')) {
+                                    deleteItem(itemIndex);
+                                }
                             }
                         } else if (diffX < -50) { // 左滑 - 编辑
                             currentEditIndex = itemIndex;
