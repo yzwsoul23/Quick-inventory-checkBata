@@ -515,6 +515,78 @@
         .list-item.swipe-left {
             background-color: rgba(40, 167, 69, 0.2) !important; /* 左滑编辑 - 绿色 */
         }
+
+        /* 添加资产编号的样式 */
+        .asset-number {
+            display: inline-block;
+            min-width: 24px;
+            color: #6c757d;
+            font-weight: bold;
+        }
+
+        /* 地点编辑按钮样式 */
+        .location-edit-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 2px 8px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .location-edit-btn:hover {
+            opacity: 1;
+        }
+
+        /* 地点批量编辑模态框样式 */
+        #locationEditModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 800px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        #locationEditModal h3 {
+            margin-bottom: 10px;
+            color: #007bff;
+            text-align: center;
+        }
+
+        #locationEditInput {
+            width: 100%;
+            height: 400px;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            resize: vertical;
+        }
+
+        #saveLocationEditButton {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        #saveLocationEditButton:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -589,6 +661,13 @@
         <button id="closeGuideButton">我知道了</button>
     </div>
 
+    <!-- 添加地点批量编辑模态框 -->
+    <div id="locationEditModal">
+        <h3>编辑地点及资产</h3>
+        <textarea id="locationEditInput" placeholder="编辑地点及其所有资产，每行一条"></textarea>
+        <button id="saveLocationEditButton">保存修改</button>
+    </div>
+
     <script>
         let items = [];
         let currentEditIndex = null;
@@ -618,6 +697,10 @@
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
         const closeSearchButton = document.getElementById('closeSearchButton');
+        const locationEditModal = document.getElementById('locationEditModal');
+        const locationEditInput = document.getElementById('locationEditInput');
+        const saveLocationEditButton = document.getElementById('saveLocationEditButton');
+        let currentLocationEditIndex = -1;
 
         // 添加IndexedDB初始化代码
         const initDB = () => {
@@ -727,22 +810,26 @@
             };
         };
 
-        // 修改 refreshList 函数中生成列表项的代码
+        // 修改 refreshList 函数，为每个地点下的资产添加编号
         function refreshList() {
             let currentLocationIndex = -1;
+            let assetCounter = 0;
             
             dataList.innerHTML = items.map((item, index) => {
                 if (item.startsWith('@')) {
                     currentLocationIndex = index;
+                    assetCounter = 0;
                     return `<div class="list-item location-item" data-location-index="${index}" data-index="${index}">
                         <div class="item-text">
                             <span class="collapse-icon">${index === 0 ? '▶' : '▼'}</span> ${item}
                         </div>
+                        <button class="location-edit-btn" data-location="${index}" title="批量编辑此地点及资产">✏️</button>
                     </div>`;
                 } else {
+                    assetCounter++;
                     return `<div class="list-item asset-item" data-belongs-to="${currentLocationIndex}" data-index="${index}"
                         style="${currentLocationIndex === 0 ? 'display: none;' : ''}">
-                        <div class="item-text">${item}</div>
+                        <div class="item-text"><span class="asset-number">${assetCounter}. </span>${item}</div>
                     </div>`;
                 }
             }).join('');
@@ -890,6 +977,119 @@
                 item.addEventListener('touchend', handleEnd);
                 item.addEventListener('touchcancel', handleCancel);
             });
+
+            // 添加地点编辑按钮的点击事件
+            const locationEditButtons = document.querySelectorAll('.location-edit-btn');
+            locationEditButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 阻止事件冒泡，避免触发折叠/展开
+                    
+                    const locationIndex = parseInt(button.getAttribute('data-location'));
+                    openLocationEditor(locationIndex);
+                });
+            });
+        }
+
+        // 打开地点批量编辑器
+        function openLocationEditor(locationIndex) {
+            // 确保该索引存在且是地点行
+            if (!items[locationIndex] || !items[locationIndex].startsWith('@')) {
+                return;
+            }
+            
+            // 收集当前地点及其所有资产
+            const locationData = [items[locationIndex]];
+            let nextIndex = locationIndex + 1;
+            
+            // 找出所有属于该地点的资产
+            while (nextIndex < items.length && !items[nextIndex].startsWith('@')) {
+                locationData.push(items[nextIndex]);
+                nextIndex++;
+            }
+            
+            // 填充编辑框内容
+            locationEditInput.value = locationData.join('\n');
+            
+            // 记录当前编辑的地点索引
+            currentLocationEditIndex = locationIndex;
+            
+            // 显示模态框
+            locationEditModal.style.display = 'block';
+            overlay.style.display = 'block';
+            
+            // 将光标放在文本框末尾
+            setTimeout(() => {
+                locationEditInput.focus();
+                locationEditInput.scrollTop = locationEditInput.scrollHeight;
+            }, 100);
+        }
+
+        // 保存地点批量编辑
+        function saveLocationEdit() {
+            const editedText = locationEditInput.value.trim();
+            if (!editedText) {
+                showErrorToast('内容不能为空');
+                return;
+            }
+            
+            const editedItems = editedText.split('\n').filter(item => item.trim());
+            if (editedItems.length === 0) {
+                showErrorToast('内容不能为空');
+                return;
+            }
+            
+            // 检查第一行是否是@开头
+            if (!editedItems[0].startsWith('@')) {
+                showErrorToast('第一行必须是地点行（以@开头）');
+                return;
+            }
+            
+            // 开始事务
+            const transaction = db.transaction(['items'], 'readwrite');
+            const store = transaction.objectStore('items');
+            
+            // 先获取所有数据
+            const getAllRequest = store.getAll();
+            
+            getAllRequest.onsuccess = () => {
+                const allItems = getAllRequest.result.map(item => item.value);
+                
+                // 找出当前地点及其资产在数据库中的范围
+                let startIndex = currentLocationEditIndex;
+                let endIndex = startIndex + 1;
+                
+                while (endIndex < allItems.length && !allItems[endIndex].startsWith('@')) {
+                    endIndex++;
+                }
+                
+                // 计算要删除的项目数
+                const deleteCount = endIndex - startIndex;
+                
+                // 清除store后重新添加数据
+                store.clear().onsuccess = () => {
+                    // 添加编辑前的数据
+                    for (let i = 0; i < startIndex; i++) {
+                        store.add({ value: allItems[i] });
+                    }
+                    
+                    // 添加编辑后的数据
+                    for (let i = 0; i < editedItems.length; i++) {
+                        store.add({ value: editedItems[i] });
+                    }
+                    
+                    // 添加编辑后的剩余数据
+                    for (let i = endIndex; i < allItems.length; i++) {
+                        store.add({ value: allItems[i] });
+                    }
+                    
+                    transaction.oncomplete = () => {
+                        loadItems();
+                        locationEditModal.style.display = 'none';
+                        overlay.style.display = 'none';
+                        showToast('地点及其资产已更新');
+                    };
+                };
+            };
         }
 
         // 添加复制到剪贴板的辅助函数
@@ -1214,6 +1414,11 @@
         // 关闭编辑模态框
         overlay.addEventListener('click', () => {
             editModal.style.display = 'none';
+            importModal.style.display = 'none';
+            editAllModal.style.display = 'none';
+            guideModal.style.display = 'none';
+            searchModal.style.display = 'none';
+            locationEditModal.style.display = 'none';
             overlay.style.display = 'none';
         });
 
@@ -1334,6 +1539,7 @@
             editAllModal.style.display = 'none';
             guideModal.style.display = 'none';
             searchModal.style.display = 'none';
+            locationEditModal.style.display = 'none';
             overlay.style.display = 'none';
         });
 
@@ -1423,6 +1629,7 @@
                 editAllModal.style.display = 'none';
                 guideModal.style.display = 'none';
                 searchModal.style.display = 'none';
+                locationEditModal.style.display = 'none';
                 overlay.style.display = 'none';
             }
         });
@@ -1476,6 +1683,9 @@
                 saveEditButton.click();
             }
         });
+
+        // 添加保存按钮事件监听
+        saveLocationEditButton.addEventListener('click', saveLocationEdit);
 
         // 添加搜索函数
         function searchAssets(keyword) {
