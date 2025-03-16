@@ -42,6 +42,10 @@
             flex-wrap: nowrap;
             justify-content: space-between;
             gap: 8px;
+            transition: transform 0.3s, background-color 0.3s;
+            touch-action: pan-y;
+            user-select: none;
+            cursor: default;
         }
 
         .list-item:nth-child(even) {
@@ -502,6 +506,15 @@
         #closeSearchButton:hover {
             background-color: #0056b3;
         }
+
+        /* 添加滑动提示样式 */
+        .list-item.swipe-right {
+            background-color: rgba(220, 53, 69, 0.2) !important; /* 右滑删除 - 红色 */
+        }
+
+        .list-item.swipe-left {
+            background-color: rgba(40, 167, 69, 0.2) !important; /* 左滑编辑 - 绿色 */
+        }
     </style>
 </head>
 <body>
@@ -714,30 +727,22 @@
             };
         };
 
-        // 修改 refreshList 函数，添加默认收起模板资产的逻辑
+        // 修改 refreshList 函数中生成列表项的代码
         function refreshList() {
             let currentLocationIndex = -1;
             
             dataList.innerHTML = items.map((item, index) => {
                 if (item.startsWith('@')) {
                     currentLocationIndex = index;
-                    return `<div class="list-item location-item" data-location-index="${index}">
+                    return `<div class="list-item location-item" data-location-index="${index}" data-index="${index}">
                         <div class="item-text">
                             <span class="collapse-icon">${index === 0 ? '▶' : '▼'}</span> ${item}
                         </div>
-                        <div class="button-container">
-                            <button class="action-btn edit-btn" data-index="${index}">编辑</button>
-                            <button class="action-btn delete-btn" data-index="${index}">删除</button>
-                        </div>
                     </div>`;
                 } else {
-                    return `<div class="list-item asset-item" data-belongs-to="${currentLocationIndex}" 
+                    return `<div class="list-item asset-item" data-belongs-to="${currentLocationIndex}" data-index="${index}"
                         style="${currentLocationIndex === 0 ? 'display: none;' : ''}">
                         <div class="item-text">${item}</div>
-                        <div class="button-container">
-                            <button class="action-btn edit-btn" data-index="${index}">编辑</button>
-                            <button class="action-btn delete-btn" data-index="${index}">删除</button>
-                        </div>
                     </div>`;
                 }
             }).join('');
@@ -746,99 +751,144 @@
             const locationItems = document.querySelectorAll('.location-item');
             locationItems.forEach(item => {
                 item.addEventListener('click', (e) => {
-                    // 如果点击的是按钮，不触发折叠/展开
-                    if (e.target.classList.contains('action-btn')) {
-                        return;
-                    }
-                    
-                    const locationIndex = parseInt(item.getAttribute('data-location-index'));
-                    const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
-                    const collapseIcon = item.querySelector('.collapse-icon');
-                    
-                    // 切换资产显示状态
-                    assets.forEach(asset => {
-                        if (asset.style.display === 'none') {
-                            asset.style.display = 'flex';
-                            collapseIcon.textContent = '▼';
-                        } else {
-                            asset.style.display = 'none';
-                            collapseIcon.textContent = '▶';
-                        }
-                    });
-                });
-            });
-
-            // 保留原有的编辑和删除按钮事件监听
-            const editButtons = document.querySelectorAll('.edit-btn');
-            editButtons.forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    currentEditIndex = parseInt(e.target.getAttribute('data-index'));
-                    editInput.value = items[currentEditIndex];
-                    editModal.style.display = 'block';
-                    overlay.style.display = 'block';
-                });
-            });
-
-            const deleteButtons = document.querySelectorAll('.delete-btn');
-            deleteButtons.forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const index = parseInt(e.target.getAttribute('data-index'));
-                    if (confirm('确定要删除这条记录吗？')) {
-                        deleteItem(index);
+                    // 只有点击折叠图标或文本时才触发折叠/展开
+                    if (!e.target.closest('.swipe-action')) {
+                        const locationIndex = parseInt(item.getAttribute('data-location-index'));
+                        const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                        const collapseIcon = item.querySelector('.collapse-icon');
+                        
+                        // 切换资产显示状态
+                        assets.forEach(asset => {
+                            if (asset.style.display === 'none') {
+                                asset.style.display = 'flex';
+                                collapseIcon.textContent = '▼';
+                            } else {
+                                asset.style.display = 'none';
+                                collapseIcon.textContent = '▶';
+                            }
+                        });
                     }
                 });
             });
-
-            // 在添加地点行和资产行的点击事件之后，添加长按复制功能
+            
+            // 为所有列表项添加滑动事件
             const allListItems = document.querySelectorAll('.list-item');
             allListItems.forEach(item => {
+                let startX = 0;
+                let currentX = 0;
+                let isSwiping = false;
+                const itemIndex = parseInt(item.getAttribute('data-index'));
+                
+                // 长按复制功能
                 let pressTimer;
                 let isPressing = false;
                 
-                // 鼠标/触摸按下
-                item.addEventListener('mousedown', (e) => {
-                    // 如果点击的是按钮，不触发长按
-                    if (e.target.classList.contains('action-btn') || e.target.classList.contains('collapse-icon')) {
-                        return;
-                    }
+                // 触摸开始/鼠标按下
+                const handleStart = (e) => {
+                    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                    startX = clientX;
+                    currentX = clientX;
+                    isSwiping = true;
                     
+                    // 长按复制
                     isPressing = true;
                     pressTimer = setTimeout(() => {
-                        if (isPressing) {
+                        if (isPressing && Math.abs(currentX - startX) < 10) { // 确保没有滑动
                             const text = item.querySelector('.item-text').textContent.trim();
                             copyToClipboard(text);
                             showToast('已复制到剪贴板！');
                         }
-                    }, 800); // 长按800毫秒触发复制
-                });
-                
-                // 触摸事件
-                item.addEventListener('touchstart', (e) => {
-                    // 如果点击的是按钮，不触发长按
-                    if (e.target.classList.contains('action-btn') || e.target.classList.contains('collapse-icon')) {
-                        return;
-                    }
-                    
-                    isPressing = true;
-                    pressTimer = setTimeout(() => {
-                        if (isPressing) {
-                            const text = item.querySelector('.item-text').textContent.trim();
-                            copyToClipboard(text);
-                            showToast('已复制到剪贴板！');
-                        }
-                    }, 800); // 长按800毫秒触发复制
-                });
-                
-                // 鼠标/触摸移开或松开
-                const cancelPress = () => {
-                    clearTimeout(pressTimer);
-                    isPressing = false;
+                    }, 800);
                 };
                 
-                item.addEventListener('mouseup', cancelPress);
-                item.addEventListener('mouseleave', cancelPress);
-                item.addEventListener('touchend', cancelPress);
-                item.addEventListener('touchcancel', cancelPress);
+                // 触摸移动/鼠标移动
+                const handleMove = (e) => {
+                    if (!isSwiping) return;
+                    
+                    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+                    currentX = clientX;
+                    const diffX = currentX - startX;
+                    
+                    // 如果滑动距离超过10px，取消长按
+                    if (Math.abs(diffX) > 10) {
+                        clearTimeout(pressTimer);
+                        isPressing = false;
+                    }
+                    
+                    // 应用滑动效果
+                    if (Math.abs(diffX) < 100) { // 限制滑动距离
+                        item.style.transform = `translateX(${diffX}px)`;
+                        
+                        // 改变背景色以提示操作
+                        if (diffX > 30) { // 右滑 - 删除
+                            item.style.backgroundColor = 'rgba(220, 53, 69, 0.2)'; // 淡红色
+                        } else if (diffX < -30) { // 左滑 - 编辑
+                            item.style.backgroundColor = 'rgba(40, 167, 69, 0.2)'; // 淡绿色
+                        } else {
+                            item.style.backgroundColor = '';
+                        }
+                    }
+                };
+                
+                // 触摸结束/鼠标松开
+                const handleEnd = (e) => {
+                    isSwiping = false;
+                    clearTimeout(pressTimer);
+                    isPressing = false;
+                    
+                    const diffX = currentX - startX;
+                    
+                    // 重置样式
+                    item.style.transition = 'transform 0.3s, background-color 0.3s';
+                    item.style.transform = 'translateX(0)';
+                    item.style.backgroundColor = '';
+                    
+                    // 执行相应操作
+                    if (Math.abs(diffX) > 50) { // 需要滑动50px以上才触发操作
+                        if (diffX > 50) { // 右滑 - 删除
+                            if (confirm('确定要删除这条记录吗？')) {
+                                deleteItem(itemIndex);
+                            }
+                        } else if (diffX < -50) { // 左滑 - 编辑
+                            currentEditIndex = itemIndex;
+                            editInput.value = items[itemIndex];
+                            editModal.style.display = 'block';
+                            overlay.style.display = 'block';
+                        }
+                    }
+                    
+                    // 300ms后移除过渡效果
+                    setTimeout(() => {
+                        item.style.transition = '';
+                    }, 300);
+                };
+                
+                // 取消操作
+                const handleCancel = () => {
+                    isSwiping = false;
+                    clearTimeout(pressTimer);
+                    isPressing = false;
+                    
+                    item.style.transition = 'transform 0.3s, background-color 0.3s';
+                    item.style.transform = 'translateX(0)';
+                    item.style.backgroundColor = '';
+                    
+                    setTimeout(() => {
+                        item.style.transition = '';
+                    }, 300);
+                };
+                
+                // 鼠标事件
+                item.addEventListener('mousedown', handleStart);
+                item.addEventListener('mousemove', handleMove);
+                item.addEventListener('mouseup', handleEnd);
+                item.addEventListener('mouseleave', handleCancel);
+                
+                // 触摸事件
+                item.addEventListener('touchstart', handleStart);
+                item.addEventListener('touchmove', handleMove);
+                item.addEventListener('touchend', handleEnd);
+                item.addEventListener('touchcancel', handleCancel);
             });
         }
 
