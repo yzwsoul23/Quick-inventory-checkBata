@@ -1000,12 +1000,14 @@
                         } else if (diffX < -50) { // 左滑 - 编辑
                             currentEditIndex = itemIndex;
                             editInput.value = items[itemIndex];
-                            editModal.style.display = 'block';
-                            overlay.style.display = 'block';
-                            // 添加延时以确保模态框显示后再选中文本
+                    editModal.style.display = 'block';
+                    overlay.style.display = 'block';
+                            
+                            // 添加这段代码，将光标放在文本末尾
                             setTimeout(() => {
                                 editInput.focus();
-                                editInput.select(); // 选中全部文本
+                                editInput.selectionStart = editInput.value.length;
+                                editInput.selectionEnd = editInput.value.length;
                             }, 50);
                         }
                     }
@@ -1083,10 +1085,11 @@
             locationEditModal.style.display = 'block';
             overlay.style.display = 'block';
             
-            // 将光标放在文本框末尾
+            // 将光标放在文本框末尾，而不是选中全部文本
             setTimeout(() => {
                 locationEditInput.focus();
-                locationEditInput.scrollTop = locationEditInput.scrollHeight;
+                locationEditInput.selectionStart = locationEditInput.value.length;
+                locationEditInput.selectionEnd = locationEditInput.value.length;
             }, 100);
         }
 
