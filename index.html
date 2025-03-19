@@ -1002,6 +1002,11 @@
                             editInput.value = items[itemIndex];
                             editModal.style.display = 'block';
                             overlay.style.display = 'block';
+                            // 添加延时以确保模态框显示后再选中文本
+                            setTimeout(() => {
+                                editInput.focus();
+                                editInput.select(); // 选中全部文本
+                            }, 50);
                         }
                     }
                     
