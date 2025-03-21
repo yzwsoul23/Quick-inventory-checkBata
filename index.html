@@ -909,7 +909,7 @@
                 });
             });
 
-            // 为所有列表项添加滑动事件
+            // 修改为所有列表项添加双击复制功能
             const allListItems = document.querySelectorAll('.list-item');
             allListItems.forEach(item => {
                 let startX = 0;
@@ -917,26 +917,24 @@
                 let isSwiping = false;
                 const itemIndex = parseInt(item.getAttribute('data-index'));
                 
-                // 长按复制功能
-                let pressTimer;
-                let isPressing = false;
+                // 添加双击复制事件
+                item.addEventListener('dblclick', (e) => {
+                    // 如果点击的是按钮，不触发复制
+                    if (e.target.classList.contains('action-btn') || e.target.classList.contains('collapse-icon')) {
+                        return;
+                    }
+                    
+                    const text = item.querySelector('.item-text').textContent.trim();
+                    copyToClipboard(text);
+                    showToast('已复制到剪贴板！');
+                });
                 
-                // 触摸开始/鼠标按下
+                // 触摸开始/鼠标按下 (只保留滑动功能，移除长按复制功能)
                 const handleStart = (e) => {
                     const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                     startX = clientX;
                     currentX = clientX;
                     isSwiping = true;
-                    
-                    // 长按复制
-                    isPressing = true;
-                    pressTimer = setTimeout(() => {
-                        if (isPressing && Math.abs(currentX - startX) < 10) { // 确保没有滑动
-                            const text = item.querySelector('.item-text').textContent.trim();
-                            copyToClipboard(text);
-                            showToast('已复制到剪贴板！');
-                        }
-                    }, 800);
                 };
                 
                 // 触摸移动/鼠标移动
@@ -946,12 +944,6 @@
                     const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
                     currentX = clientX;
                     const diffX = currentX - startX;
-                    
-                    // 如果滑动距离超过10px，取消长按
-                    if (Math.abs(diffX) > 10) {
-                        clearTimeout(pressTimer);
-                        isPressing = false;
-                    }
                     
                     // 应用滑动效果
                     if (Math.abs(diffX) < 100) { // 限制滑动距离
@@ -971,8 +963,6 @@
                 // 触摸结束/鼠标松开
                 const handleEnd = (e) => {
                     isSwiping = false;
-                    clearTimeout(pressTimer);
-                    isPressing = false;
                     
                     const diffX = currentX - startX;
                     
@@ -1021,8 +1011,6 @@
                 // 取消操作
                 const handleCancel = () => {
                     isSwiping = false;
-                    clearTimeout(pressTimer);
-                    isPressing = false;
                     
                     item.style.transition = 'transform 0.3s, background-color 0.3s';
                     item.style.transform = 'translateX(0)';
