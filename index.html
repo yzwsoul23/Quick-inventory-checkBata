@@ -1250,7 +1250,7 @@
             document.body.removeChild(textarea);
         }
 
-        // 修改显示智能提示函数
+        // 修改显示智能提示函数，从一开始就将建议项倒序显示
         function showSuggestions(text) {
             text = text.trim();
             if (!text) {
@@ -1258,7 +1258,10 @@
                 return;
             }
 
-            const uniqueItems = [...new Set(items)];
+            // 首先将整个列表倒序处理，确保最新添加的项目排在前面
+            const reversedItems = [...items].reverse();
+            const uniqueItems = [...new Set(reversedItems)];
+            
             const filtered = uniqueItems.filter(item => 
                 item.toLowerCase().includes(text.toLowerCase())
             );
