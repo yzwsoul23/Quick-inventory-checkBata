@@ -637,6 +637,193 @@
         #saveLocationEditButton:hover {
             background-color: #0056b3;
         }
+
+        /* 添加备份模态框样式 */
+        #backupModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        #backupModal h3, #backupModal h4 {
+            margin-bottom: 10px;
+            color: #007bff;
+            text-align: center;
+        }
+        
+        .backup-info {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        
+        .backup-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .backup-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .backup-buttons button {
+            flex: 1;
+            min-width: calc(50% - 5px);
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        #manualBackupButton {
+            background-color: #28a745;
+        }
+        
+        #manualBackupButton:hover {
+            background-color: #218838;
+        }
+        
+        #restoreBackupButton {
+            background-color: #17a2b8;
+        }
+        
+        #restoreBackupButton:hover {
+            background-color: #138496;
+        }
+        
+        #exportBackupButton {
+            background-color: #007bff;
+        }
+        
+        #exportBackupButton:hover {
+            background-color: #0069d9;
+        }
+        
+        #importBackupButton {
+            background-color: #6c757d;
+        }
+        
+        #importBackupButton:hover {
+            background-color: #5a6268;
+        }
+        
+        .backup-options {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        
+        .backup-options label {
+            display: block;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        
+        .backup-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        
+        .backup-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .backup-item:last-child {
+            border-bottom: none;
+        }
+        
+        .backup-item-info {
+            flex: 2;
+        }
+        
+        .backup-item-time {
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .backup-item-desc, .backup-item-count {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        
+        .backup-item-actions {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 5px;
+        }
+        
+        .backup-item-actions button {
+            padding: 3px 8px;
+            border: none;
+            border-radius: 3px;
+            font-size: 12px;
+            color: white;
+            cursor: pointer;
+        }
+        
+        .backup-restore-btn {
+            background-color: #17a2b8;
+        }
+        
+        .backup-export-btn {
+            background-color: #007bff;
+        }
+        
+        .backup-delete-btn {
+            background-color: #dc3545;
+        }
+        
+        #closeBackupModalButton {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        #closeBackupModalButton:hover {
+            background-color: #0056b3;
+        }
+        
+        .no-backup, .backup-error {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .backup-error {
+            color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -718,6 +905,50 @@
         <button id="saveLocationEditButton">保存修改</button>
     </div>
 
+    <!-- 添加备份模态框 -->
+    <div id="backupModal">
+        <h3>数据备份与恢复</h3>
+        <div class="backup-info">
+            <p>上次自动备份时间：<span id="lastBackupTime">无</span></p>
+            <p>当前自动备份状态：<span id="backupStatus">已启用</span></p>
+        </div>
+        <div class="backup-buttons">
+            <button id="manualBackupButton">立即备份</button>
+            <button id="restoreBackupButton">恢复备份</button>
+            <button id="exportBackupButton">导出备份文件</button>
+            <button id="importBackupButton">导入备份文件</button>
+            <input type="file" id="backupFileInput" accept=".json" style="display: none;">
+        </div>
+        <div class="backup-options">
+            <label>
+                <input type="checkbox" id="autoBackupEnabled" checked>
+                启用自动备份
+            </label>
+            <label>
+                备份频率：
+                <select id="backupFrequency">
+                    <option value="3600000">每小时</option>
+                    <option value="86400000" selected>每天</option>
+                    <option value="604800000">每周</option>
+                </select>
+            </label>
+            <label>
+                保留备份数：
+                <select id="backupRetention">
+                    <option value="1">1个</option>
+                    <option value="3" selected>3个</option>
+                    <option value="5">5个</option>
+                    <option value="10">10个</option>
+                </select>
+            </label>
+        </div>
+        <div class="backup-list">
+            <h4>可用备份列表</h4>
+            <div id="backupsList"></div>
+        </div>
+        <button id="closeBackupModalButton">关闭</button>
+    </div>
+
     <script>
         let items = [];
         let currentEditIndex = null;
@@ -752,6 +983,31 @@
         const saveLocationEditButton = document.getElementById('saveLocationEditButton');
         let currentLocationEditIndex = -1;
 
+        // 添加备份相关变量
+        let backupSettings = {
+            enabled: true,
+            frequency: 86400000, // 默认每天备份一次（毫秒）
+            retention: 3,        // 默认保留3个备份
+            lastBackupTime: null // 上次备份时间
+        };
+        let backupTimer = null;
+        let backups = [];       // 备份列表
+        
+        // 添加备份相关DOM引用
+        const backupModal = document.getElementById('backupModal');
+        const lastBackupTimeSpan = document.getElementById('lastBackupTime');
+        const backupStatusSpan = document.getElementById('backupStatus');
+        const manualBackupButton = document.getElementById('manualBackupButton');
+        const restoreBackupButton = document.getElementById('restoreBackupButton');
+        const exportBackupButton = document.getElementById('exportBackupButton');
+        const importBackupButton = document.getElementById('importBackupButton');
+        const backupFileInput = document.getElementById('backupFileInput');
+        const autoBackupEnabledCheckbox = document.getElementById('autoBackupEnabled');
+        const backupFrequencySelect = document.getElementById('backupFrequency');
+        const backupRetentionSelect = document.getElementById('backupRetention');
+        const backupsList = document.getElementById('backupsList');
+        const closeBackupModalButton = document.getElementById('closeBackupModalButton');
+        
         // 使用事件委托添加交互事件，修复之前可能的问题
         function setupEventDelegation() {
             try {
@@ -873,6 +1129,9 @@
                     
                     // 立即加载数据
                     loadItems();
+                    
+                    // 初始化备份系统
+                    setupBackup();
                 };
             } catch (error) {
                 console.error('初始化数据库时出错:', error);
@@ -2074,65 +2333,37 @@
                 // 显示处理中提示
                 showToast('正在处理数据...');
                 
-                // 使用requestAnimationFrame确保UI更新后再执行复杂操作
-                requestAnimationFrame(() => {
-                    // 没有重复地点，执行修改
-                    store.clear().onsuccess = () => {
-                        let addedCount = 0;
-                        const totalItems = processedValues.length;
-                        let processedCount = 0;
-                        
-                        // 分批添加数据
-                        const batchSize = 100;
-                        let currentBatch = 0;
-                        
-                        function processBatch() {
-                            const startIdx = currentBatch * batchSize;
-                            const endIdx = Math.min(startIdx + batchSize, totalItems);
-                            
-                            const batchPromises = [];
-                            
-                            for (let i = startIdx; i < endIdx; i++) {
-                                const value = processedValues[i];
-                                if (value) {
-                                    const promise = new Promise((itemResolve) => {
-                                        const request = store.add({ value: value });
-                                        request.onsuccess = () => {
-                                            addedCount++;
-                                            itemResolve();
-                                        };
-                                        request.onerror = () => {
-                                            console.error('添加数据失败:', value);
-                                            itemResolve();
-                                        };
-                                    });
-                                    batchPromises.push(promise);
-                                }
-                                processedCount++;
-                            }
-                            
-                            // 等待当前批次完成
-                            Promise.all(batchPromises).then(() => {
-                                currentBatch++;
-                                if (processedCount < totalItems) {
-                                    // 安排下一批次
-                                    setTimeout(processBatch, 0);
-                                }
-                            });
+                // 没有重复地点，执行修改
+            store.clear().onsuccess = () => {
+                let addedCount = 0;
+                const addItems = processedValues.map(value => {
+                    return new Promise((resolve) => {
+                        if (value) {
+                            const request = store.add({ value: value });
+                            request.onsuccess = () => {
+                                addedCount++;
+                                resolve();
+                            };
+                            request.onerror = () => {
+                                console.error('添加数据失败:', value);
+                                resolve();
+                            };
+                        } else {
+                            resolve();
                         }
-                        
-                        // 开始处理第一批
-                        processBatch();
-                        
-                        transaction.oncomplete = () => {
-                            loadItems();
-                            showToast(`批量修改成功，共更新${addedCount}条数据！`);
-                            resolve(true);
-                        };
+                    });
+                });
+                
+                Promise.all(addItems).then(() => {
+                    transaction.oncomplete = () => {
+                        loadItems();
+                        showToast(`批量修改成功，共更新${addedCount}条数据！`);
                     };
                 });
-            });
-        };
+            };
+            return true; // 返回true表示成功
+        })
+    }
 
         // 修改批量编辑按钮的点击事件
         batchEditButton.addEventListener('click', () => {
@@ -2245,60 +2476,32 @@
                     // 显示处理中提示
                     showToast('正在导入数据...');
                     
-                    // 使用requestAnimationFrame确保UI更新后再执行复杂操作
-                    requestAnimationFrame(() => {
-                        // 没有重复地点，执行导入
-                        let addedCount = 0;
-                        const totalItems = processedValues.length;
-                        let processedCount = 0;
-                        
-                        // 分批添加数据
-                        const batchSize = 100;
-                        let currentBatch = 0;
-                        
-                        function processBatch() {
-                            const startIdx = currentBatch * batchSize;
-                            const endIdx = Math.min(startIdx + batchSize, totalItems);
-                            
-                            const batchPromises = [];
-                            
-                            for (let i = startIdx; i < endIdx; i++) {
-                                const value = processedValues[i];
-                                if (value) {
-                                    const promise = new Promise((itemResolve) => {
-                                        const request = store.add({ value: value });
-                                        request.onsuccess = () => {
-                                            addedCount++;
-                                            itemResolve();
-                                        };
-                                        request.onerror = () => {
-                                            console.error('添加数据失败:', value);
-                                            itemResolve();
-                                        };
-                                    });
-                                    batchPromises.push(promise);
-                                }
-                                processedCount++;
+                    // 没有重复地点，执行导入
+                    let addedCount = 0;
+                    const addItems = processedValues.map(value => {
+                        return new Promise((resolve) => {
+                if (value) {
+                                const request = store.add({ value: value });
+                                request.onsuccess = () => {
+                                    addedCount++;
+                                    resolve();
+                                };
+                                request.onerror = () => {
+                                    console.error('添加数据失败:', value);
+                                    resolve();
+                                };
+                            } else {
+                                resolve();
                             }
-                            
-                            // 等待当前批次完成
-                            Promise.all(batchPromises).then(() => {
-                                currentBatch++;
-                                if (processedCount < totalItems) {
-                                    // 安排下一批次
-                                    setTimeout(processBatch, 0);
-                                }
-                            });
-                        }
-                        
-                        // 开始处理第一批
-                        processBatch();
-                        
-                        transaction.oncomplete = () => {
-                            loadItems();
+                        });
+                    });
+                    
+                    Promise.all(addItems).then(() => {
+            transaction.oncomplete = () => {
+                loadItems();
                             showToast(`批量添加成功，共添加${addedCount}条数据！`);
-                            resolve(true);
-                        };
+                            resolve(true);  // 操作成功完成
+            };
                     });
                 };
             });
@@ -2339,6 +2542,7 @@
             editAllModal.style.display = 'none';
             guideModal.style.display = 'none';
             searchModal.style.display = 'none';
+            backupModal.style.display = 'none';
             locationEditModal.style.display = 'none';
             overlay.style.display = 'none';
         });
@@ -2474,11 +2678,9 @@
         // 添加按钮点击事件
         collapseAllButton.addEventListener('click', toggleAllLocations);
 
-        // 初始化数据库并加载数据
-        initDB();
-
-        // 初始化显示
-        refreshList();
+        // 注释掉这里的初始化，仅在DOMContentLoaded事件中初始化一次
+        // initDB();
+        // refreshList();
         
         // 添加定期内存清理
         setInterval(() => {
@@ -2766,6 +2968,611 @@
             
             // 检查数据显示
             setTimeout(checkAndRepairDisplay, 1000);
+        }
+
+        // 添加自动备份功能
+        function setupBackup() {
+            // 加载备份设置
+            loadBackupSettings();
+            
+            // 加载已有备份列表
+            loadBackups();
+            
+            // 设置自动备份定时器
+            setupBackupTimer();
+            
+            // 添加备份按钮到页面
+            addBackupButton();
+            
+            // 添加事件监听
+            manualBackupButton.addEventListener('click', () => createBackup(false));
+            restoreBackupButton.addEventListener('click', promptRestoreBackup);
+            exportBackupButton.addEventListener('click', exportBackup);
+            importBackupButton.addEventListener('click', () => backupFileInput.click());
+            backupFileInput.addEventListener('change', importBackup);
+            closeBackupModalButton.addEventListener('click', () => {
+                backupModal.style.display = 'none';
+                overlay.style.display = 'none';
+            });
+            
+            // 设置变更监听
+            autoBackupEnabledCheckbox.addEventListener('change', updateBackupSettings);
+            backupFrequencySelect.addEventListener('change', updateBackupSettings);
+            backupRetentionSelect.addEventListener('change', updateBackupSettings);
+            
+            console.log('备份系统已初始化');
+        }
+        
+        // 添加备份按钮到界面
+        function addBackupButton() {
+            const backupButton = document.createElement('button');
+            backupButton.id = 'backupButton';
+            backupButton.title = '数据备份与恢复';
+            backupButton.textContent = '💾';
+            backupButton.style.cssText = `
+                position: fixed;
+                right: 20px;
+                bottom: 120px;
+                width: 40px;
+                height: 40px;
+                background-color: rgba(0, 123, 255, 0.8);
+                color: white;
+                border: none;
+                border-radius: 50%;
+                cursor: pointer;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-size: 20px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                transition: all 0.3s ease;
+                z-index: 999;
+            `;
+            
+            backupButton.addEventListener('mouseover', () => {
+                backupButton.style.backgroundColor = 'rgba(0, 123, 255, 1)';
+                backupButton.style.transform = 'translateY(-2px)';
+                backupButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+            });
+            
+            backupButton.addEventListener('mouseout', () => {
+                backupButton.style.backgroundColor = 'rgba(0, 123, 255, 0.8)';
+                backupButton.style.transform = '';
+                backupButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+            });
+            
+            backupButton.addEventListener('click', openBackupModal);
+            
+            document.body.appendChild(backupButton);
+        }
+        
+        // 打开备份模态框
+        function openBackupModal() {
+            updateBackupsList();
+            updateBackupUI();
+            
+            backupModal.style.display = 'block';
+            overlay.style.display = 'block';
+        }
+        
+        // 更新备份设置UI
+        function updateBackupUI() {
+            lastBackupTimeSpan.textContent = backupSettings.lastBackupTime 
+                ? new Date(backupSettings.lastBackupTime).toLocaleString() 
+                : '无';
+                
+            backupStatusSpan.textContent = backupSettings.enabled ? '已启用' : '已禁用';
+            autoBackupEnabledCheckbox.checked = backupSettings.enabled;
+            backupFrequencySelect.value = backupSettings.frequency.toString();
+            backupRetentionSelect.value = backupSettings.retention.toString();
+        }
+        
+        // 加载备份设置
+        function loadBackupSettings() {
+            try {
+                const savedSettings = localStorage.getItem('backupSettings');
+                if (savedSettings) {
+                    backupSettings = JSON.parse(savedSettings);
+                    console.log('已加载备份设置:', backupSettings);
+                }
+            } catch (error) {
+                console.error('加载备份设置出错:', error);
+                // 使用默认设置
+                backupSettings = {
+                    enabled: true,
+                    frequency: 86400000,
+                    retention: 3,
+                    lastBackupTime: null
+                };
+            }
+        }
+        
+        // 保存备份设置
+        function saveBackupSettings() {
+            try {
+                localStorage.setItem('backupSettings', JSON.stringify(backupSettings));
+                console.log('备份设置已保存');
+            } catch (error) {
+                console.error('保存备份设置出错:', error);
+                showErrorToast('保存备份设置失败');
+            }
+        }
+        
+        // 更新备份设置
+        function updateBackupSettings() {
+            backupSettings.enabled = autoBackupEnabledCheckbox.checked;
+            backupSettings.frequency = parseInt(backupFrequencySelect.value);
+            backupSettings.retention = parseInt(backupRetentionSelect.value);
+            
+            saveBackupSettings();
+            setupBackupTimer(); // 重新设置定时器
+            updateBackupUI(); // 更新界面
+            
+            showToast('备份设置已更新');
+        }
+        
+        // 设置备份定时器
+        function setupBackupTimer() {
+            // 清除现有定时器
+            if (backupTimer) {
+                clearInterval(backupTimer);
+                backupTimer = null;
+            }
+            
+            // 如果启用了自动备份
+            if (backupSettings.enabled) {
+                backupTimer = setInterval(() => {
+                    console.log('执行自动备份...');
+                    createBackup(true);
+                }, backupSettings.frequency);
+                
+                console.log(`自动备份已设置，频率: ${backupSettings.frequency / (1000 * 60 * 60)} 小时`);
+            } else {
+                console.log('自动备份已禁用');
+            }
+        }
+        
+        // 创建备份
+        function createBackup(isAuto = false) {
+            try {
+                if (!db) {
+                    showErrorToast('数据库未准备好，无法备份');
+                    return;
+                }
+                
+                const transaction = db.transaction(['items'], 'readonly');
+                const store = transaction.objectStore('items');
+                const request = store.getAll();
+                
+                request.onsuccess = () => {
+                    const currentData = request.result;
+                    
+                    if (!currentData || currentData.length === 0) {
+                        showErrorToast('没有数据可备份');
+                        return;
+                    }
+                    
+                    // 创建备份对象
+                    const timestamp = new Date().getTime();
+                    const backupName = `backup_${timestamp}`;
+                    const backup = {
+                        id: backupName,
+                        timestamp: timestamp,
+                        description: isAuto ? '自动备份' : '手动备份',
+                        data: currentData,
+                        itemCount: currentData.length
+                    };
+                    
+                    // 保存备份到localStorage
+                    try {
+                        localStorage.setItem(backupName, JSON.stringify(backup));
+                        
+                        // 更新备份列表
+                        loadBackups();
+                        
+                        // 更新最后备份时间
+                        backupSettings.lastBackupTime = timestamp;
+                        saveBackupSettings();
+                        
+                        // 管理备份数量
+                        manageBackups();
+                        
+                        console.log(`备份创建成功: ${backupName}, 包含 ${currentData.length} 条记录`);
+                        
+                        if (!isAuto) {
+                            showToast('备份创建成功！');
+                            updateBackupUI();
+                            updateBackupsList();
+                        }
+                    } catch (error) {
+                        console.error('保存备份到localStorage出错:', error);
+                        
+                        // 如果localStorage空间不足，尝试导出到文件
+                        if (error.name === 'QuotaExceededError') {
+                            showErrorToast('存储空间不足，尝试导出到文件');
+                            exportBackupToFile(backup);
+                        } else {
+                            showErrorToast('创建备份失败: ' + error.message);
+                        }
+                    }
+                };
+                
+                request.onerror = (event) => {
+                    console.error('获取备份数据出错:', event.target.error);
+                    showErrorToast('获取备份数据失败');
+                };
+            } catch (error) {
+                console.error('创建备份时出错:', error);
+                showErrorToast('创建备份失败');
+            }
+        }
+        
+        // 导出备份到文件
+        function exportBackupToFile(backup) {
+            try {
+                const backupBlob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(backupBlob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `快速库存清单_备份_${new Date(backup.timestamp).toLocaleString().replace(/[\/\s:]/g, '_')}.json`;
+                document.body.appendChild(link);
+                link.click();
+                
+                // 清理
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+                showToast('备份已导出到文件');
+            } catch (error) {
+                console.error('导出备份到文件出错:', error);
+                showErrorToast('导出备份失败: ' + error.message);
+            }
+        }
+        
+        // 管理备份数量
+        function manageBackups() {
+            try {
+                // 按时间降序排列备份
+                backups.sort((a, b) => b.timestamp - a.timestamp);
+                
+                // 如果超过保留数量，删除旧备份
+                if (backups.length > backupSettings.retention) {
+                    console.log(`备份数量(${backups.length})超过保留限制(${backupSettings.retention})，删除旧备份`);
+                    
+                    const backupsToRemove = backups.slice(backupSettings.retention);
+                    backupsToRemove.forEach(backup => {
+                        try {
+                            localStorage.removeItem(backup.id);
+                            console.log(`已删除旧备份: ${backup.id}`);
+                        } catch (error) {
+                            console.error(`删除备份 ${backup.id} 出错:`, error);
+                        }
+                    });
+                    
+                    // 更新备份列表
+                    loadBackups();
+                }
+            } catch (error) {
+                console.error('管理备份数量出错:', error);
+            }
+        }
+        
+        // 加载所有备份
+        function loadBackups() {
+            try {
+                backups = [];
+                
+                // 查找localStorage中的所有备份
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    
+                    if (key.startsWith('backup_')) {
+                        try {
+                            const backup = JSON.parse(localStorage.getItem(key));
+                            backups.push(backup);
+                        } catch (error) {
+                            console.error(`解析备份 ${key} 出错:`, error);
+                        }
+                    }
+                }
+                
+                // 按时间降序排列
+                backups.sort((a, b) => b.timestamp - a.timestamp);
+                console.log(`已加载 ${backups.length} 个备份`);
+                
+                return backups;
+            } catch (error) {
+                console.error('加载备份列表出错:', error);
+                return [];
+            }
+        }
+        
+        // 更新备份列表UI
+        function updateBackupsList() {
+            try {
+                backupsList.innerHTML = '';
+                
+                if (backups.length === 0) {
+                    backupsList.innerHTML = '<div class="no-backup">暂无备份</div>';
+                    return;
+                }
+                
+                // 创建备份列表
+                backups.forEach(backup => {
+                    const backupItem = document.createElement('div');
+                    backupItem.className = 'backup-item';
+                    
+                    const dateStr = new Date(backup.timestamp).toLocaleString();
+                    const itemCount = backup.itemCount || '未知';
+                    
+                    backupItem.innerHTML = `
+                        <div class="backup-item-info">
+                            <div class="backup-item-time">${dateStr}</div>
+                            <div class="backup-item-desc">${backup.description}</div>
+                            <div class="backup-item-count">项目数: ${itemCount}</div>
+                        </div>
+                        <div class="backup-item-actions">
+                            <button class="backup-restore-btn" data-id="${backup.id}">恢复</button>
+                            <button class="backup-export-btn" data-id="${backup.id}">导出</button>
+                            <button class="backup-delete-btn" data-id="${backup.id}">删除</button>
+                        </div>
+                    `;
+                    
+                    backupsList.appendChild(backupItem);
+                });
+                
+                // 添加备份操作事件
+                document.querySelectorAll('.backup-restore-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const backupId = e.target.getAttribute('data-id');
+                        restoreBackup(backupId);
+                    });
+                });
+                
+                document.querySelectorAll('.backup-export-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const backupId = e.target.getAttribute('data-id');
+                        const backup = backups.find(b => b.id === backupId);
+                        if (backup) {
+                            exportBackupToFile(backup);
+                        }
+                    });
+                });
+                
+                document.querySelectorAll('.backup-delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const backupId = e.target.getAttribute('data-id');
+                        if (confirm('确定要删除此备份吗？')) {
+                            deleteBackup(backupId);
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('更新备份列表UI出错:', error);
+                backupsList.innerHTML = '<div class="backup-error">加载备份列表出错</div>';
+            }
+        }
+        
+        // 提示恢复备份
+        function promptRestoreBackup() {
+            if (backups.length === 0) {
+                showErrorToast('没有可用的备份');
+                return;
+            }
+            
+            if (confirm('确定要恢复备份吗？当前数据将被替换。')) {
+                // 默认恢复最新的备份
+                restoreBackup(backups[0].id);
+            }
+        }
+        
+        // 恢复备份
+        function restoreBackup(backupId) {
+            try {
+                const backupJson = localStorage.getItem(backupId);
+                
+                if (!backupJson) {
+                    showErrorToast('找不到指定的备份');
+                    return;
+                }
+                
+                const backup = JSON.parse(backupJson);
+                
+                if (!backup.data || backup.data.length === 0) {
+                    showErrorToast('备份数据为空或无效');
+                    return;
+                }
+                
+                // 确认对话框 - 先确认，再显示处理中提示
+                if (!confirm(`确定要从"${new Date(backup.timestamp).toLocaleString()}"的备份恢复${backup.data.length}条数据吗？当前数据将被替换。`)) {
+                    return;
+                }
+                
+                // 显示处理中提示
+                showToast('正在恢复数据...');
+                
+                // 使用setTimeout给UI更新的时间
+                setTimeout(() => {
+                    try {
+                        // 清空当前数据并恢复备份
+                        const transaction = db.transaction(['items'], 'readwrite');
+                        const store = transaction.objectStore('items');
+                        
+                        // 添加错误处理
+                        transaction.onerror = (event) => {
+                            console.error('恢复备份事务错误:', event.target.error);
+                            showErrorToast('恢复过程中发生错误：' + event.target.error.message);
+                        };
+                        
+                        // 清除现有数据
+                        const clearRequest = store.clear();
+                        
+                        clearRequest.onerror = (event) => {
+                            console.error('清除数据错误:', event.target.error);
+                            showErrorToast('清除现有数据失败：' + event.target.error.message);
+                            return;
+                        };
+                        
+                        clearRequest.onsuccess = () => {
+                            let addedCount = 0;
+                            let errorCount = 0;
+                            const batchSize = 50; // 增大批次大小提高性能
+                            
+                            // 分批添加数据 - 改用迭代方式而非递归，避免调用栈溢出
+                            function processBatch(startIndex) {
+                                let endIndex = Math.min(startIndex + batchSize, backup.data.length);
+                                console.log(`处理备份数据批次 ${startIndex} - ${endIndex}`);
+                                
+                                for (let i = startIndex; i < endIndex; i++) {
+                                    const item = backup.data[i];
+                                    try {
+                                        const request = store.add(item);
+                                        request.onsuccess = () => { addedCount++; };
+                                        request.onerror = (event) => {
+                                            console.error(`添加数据项 ${i} 失败:`, event.target.error);
+                                            errorCount++;
+                                        };
+                                    } catch (err) {
+                                        console.error(`处理数据项 ${i} 出错:`, err);
+                                        errorCount++;
+                                    }
+                                }
+                                
+                                // 处理下一批数据
+                                if (endIndex < backup.data.length) {
+                                    // 使用setTimeout让浏览器有时间更新UI
+                                    setTimeout(() => processBatch(endIndex), 10);
+                                }
+                            }
+                            
+                            // 开始处理第一批
+                            processBatch(0);
+                            
+                            transaction.oncomplete = () => {
+                                console.log(`备份恢复完成: 添加 ${addedCount} 项，失败 ${errorCount} 项`);
+                                
+                                // 关闭备份模态框
+                                backupModal.style.display = 'none';
+                                overlay.style.display = 'none';
+                                
+                                // 重新加载数据
+                                loadItems();
+                                showToast(`备份恢复成功，共恢复 ${addedCount} 条数据！`);
+                            };
+                        };
+                    } catch (innerError) {
+                        console.error('恢复过程中发生错误:', innerError);
+                        showErrorToast('恢复失败: ' + innerError.message);
+                    }
+                }, 100); // 给UI时间显示处理中的提示
+                
+            } catch (error) {
+                console.error('恢复备份出错:', error);
+                showErrorToast('恢复备份失败: ' + error.message);
+            }
+        }
+        
+        // 删除备份
+        function deleteBackup(backupId) {
+            try {
+                localStorage.removeItem(backupId);
+                console.log(`备份 ${backupId} 已删除`);
+                
+                // 更新备份列表
+                loadBackups();
+                updateBackupsList();
+                showToast('备份已删除');
+            } catch (error) {
+                console.error('删除备份出错:', error);
+                showErrorToast('删除备份失败: ' + error.message);
+            }
+        }
+        
+        // 导出当前备份
+        function exportBackup() {
+            // 先创建一个备份，然后导出
+            try {
+                const transaction = db.transaction(['items'], 'readonly');
+                const store = transaction.objectStore('items');
+                const request = store.getAll();
+                
+                request.onsuccess = () => {
+                    const currentData = request.result;
+                    
+                    if (!currentData || currentData.length === 0) {
+                        showErrorToast('没有数据可导出');
+                        return;
+                    }
+                    
+                    // 创建备份对象
+                    const timestamp = new Date().getTime();
+                    const backup = {
+                        id: `export_${timestamp}`,
+                        timestamp: timestamp,
+                        description: '手动导出',
+                        data: currentData,
+                        itemCount: currentData.length
+                    };
+                    
+                    exportBackupToFile(backup);
+                };
+            } catch (error) {
+                console.error('导出备份出错:', error);
+                showErrorToast('导出备份失败: ' + error.message);
+            }
+        }
+        
+        // 导入备份
+        function importBackup(e) {
+            try {
+                const file = e.target.files[0];
+                if (!file) {
+                    return;
+                }
+                
+                const reader = new FileReader();
+                
+                reader.onload = (event) => {
+                    try {
+                        const backup = JSON.parse(event.target.result);
+                        
+                        if (!backup.data || !backup.timestamp) {
+                            showErrorToast('备份文件格式无效');
+                            return;
+                        }
+                        
+                        // 导入备份到localStorage
+                        const backupId = `backup_${new Date().getTime()}`; // 使用新的ID避免冲突
+                        backup.id = backupId;
+                        backup.description = '从文件导入';
+                        
+                        localStorage.setItem(backupId, JSON.stringify(backup));
+                        
+                        // 更新备份列表
+                        loadBackups();
+                        updateBackupsList();
+                        showToast('备份已导入');
+                    } catch (error) {
+                        console.error('解析备份文件出错:', error);
+                        showErrorToast('备份文件格式错误');
+                    }
+                };
+                
+                reader.onerror = () => {
+                    showErrorToast('读取备份文件失败');
+                };
+                
+                reader.readAsText(file);
+                
+                // 清空文件输入框，允许选择同一文件
+                e.target.value = '';
+            } catch (error) {
+                console.error('导入备份出错:', error);
+                showErrorToast('导入备份失败: ' + error.message);
+            }
         }
     </script>
 </body>
