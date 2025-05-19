@@ -31,6 +31,54 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             height: calc(100vh - 200px);
             overflow-y: auto;
+            will-change: transform; /* 提示浏览器元素会频繁变化 */
+            -webkit-overflow-scrolling: touch; /* 提高移动端滚动性能 */
+        }
+
+        /* 添加加载指示器样式 */
+        .loading-indicator {
+            text-align: center;
+            padding: 20px;
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        /* 添加分页控制样式 */
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        
+        .pagination-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .pagination-buttons button {
+            padding: 5px 15px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .pagination-buttons button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .pagination-buttons button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+        
+        .paginated-items {
+            margin-top: 10px;
         }
 
         .list-item {
@@ -46,6 +94,8 @@
             touch-action: pan-y;
             user-select: none;
             cursor: default;
+            will-change: transform; /* 提示浏览器元素会频繁变化 */
+            contain: layout; /* 告诉浏览器此元素布局独立 */
         }
 
         .list-item:nth-child(even) {
@@ -702,28 +752,135 @@
         const saveLocationEditButton = document.getElementById('saveLocationEditButton');
         let currentLocationEditIndex = -1;
 
-        // 添加IndexedDB初始化代码
-        const initDB = () => {
-            const request = indexedDB.open('ItemsDB', 1);
-            
-            request.onerror = (event) => {
-                console.error('数据库错误：', event.target.error);
-            };
-
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                if (!db.objectStoreNames.contains('items')) {
-                    db.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
+        // 使用事件委托添加交互事件，修复之前可能的问题
+        function setupEventDelegation() {
+            try {
+                // 移除可能存在的事件监听器
+                dataList.removeEventListener('click', handleListClick);
+                dataList.removeEventListener('mousedown', handleListMouseDown);
+                dataList.removeEventListener('mousemove', handleListMouseMove);
+                dataList.removeEventListener('mouseup', handleListMouseUp);
+                dataList.removeEventListener('mouseleave', handleListMouseLeave);
+                dataList.removeEventListener('touchstart', handleListTouchStart);
+                dataList.removeEventListener('touchmove', handleListTouchMove);
+                dataList.removeEventListener('touchend', handleListTouchEnd);
+                dataList.removeEventListener('touchcancel', handleListTouchCancel);
+                dataList.removeEventListener('dblclick', handleListDblClick);
+                
+                // 添加委托事件处理
+                dataList.addEventListener('click', handleListClick);
+                dataList.addEventListener('mousedown', handleListMouseDown);
+                dataList.addEventListener('mousemove', handleListMouseMove);
+                dataList.addEventListener('mouseup', handleListMouseUp);
+                dataList.addEventListener('mouseleave', handleListMouseLeave);
+                dataList.addEventListener('touchstart', handleListTouchStart);
+                dataList.addEventListener('touchmove', handleListTouchMove);
+                dataList.addEventListener('touchend', handleListTouchEnd);
+                dataList.addEventListener('touchcancel', handleListTouchCancel);
+                dataList.addEventListener('dblclick', handleListDblClick);
+                
+                console.log('事件委托设置完成');
+            } catch (error) {
+                console.error('设置事件委托时出错:', error);
+                
+                // 降级处理：确保基本的折叠/展开功能可用
+                try {
+                    const locationItems = document.querySelectorAll('.location-item');
+                    locationItems.forEach(item => {
+                        item.addEventListener('click', function(e) {
+                            if (!e.target.closest('.location-edit-btn')) {
+                                const locationIndex = parseInt(this.getAttribute('data-location-index'));
+                                const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                                const collapseIcon = this.querySelector('.collapse-icon');
+                                
+                                const isCollapsed = assets.length > 0 && assets[0].style.display === 'none';
+                                
+                                assets.forEach(asset => {
+                                    asset.style.display = isCollapsed ? 'flex' : 'none';
+                                });
+                                
+                                collapseIcon.textContent = isCollapsed ? '▼' : '▶';
+                            }
+                        });
+                    });
+                    
+                    const editButtons = document.querySelectorAll('.location-edit-btn');
+                    editButtons.forEach(button => {
+                        button.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            const locationIndex = parseInt(this.getAttribute('data-location'));
+                            openLocationEditor(locationIndex);
+                        });
+                    });
+                    
+                    console.log('降级事件绑定设置完成');
+                } catch (fallbackError) {
+                    console.error('降级事件绑定失败:', fallbackError);
                 }
-            };
+            }
+        }
 
-            request.onsuccess = (event) => {
-                db = event.target.result;
-                loadItems(); // 加载存储的数据
-            };
+        // 修改保存数据到IndexedDB的函数，简化防抖逻辑
+        const saveItem = (value) => {
+            try {
+                const transaction = db.transaction(['items'], 'readwrite');
+                const store = transaction.objectStore('items');
+                
+                const request = store.add({ value });
+                
+                request.onerror = (event) => {
+                    console.error('保存数据错误：', event.target.error);
+                };
+                
+                transaction.oncomplete = () => {
+                    console.log('数据保存成功，加载最新数据');
+                    loadItems(); // 直接触发重新加载
+                };
+            } catch (error) {
+                console.error('保存数据时出错:', error);
+                alert('保存数据失败，请刷新页面后重试');
+            }
         };
 
-        // 从IndexedDB加载数据
+        // 确保IndexedDB初始化代码可靠
+        const initDB = () => {
+            try {
+                const request = indexedDB.open('ItemsDB', 1);
+                
+                request.onerror = (event) => {
+                    console.error('数据库错误：', event.target.error);
+                    alert('无法打开数据库，请检查浏览器设置或刷新页面');
+                };
+
+                request.onupgradeneeded = (event) => {
+                    console.log('数据库升级中...');
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('items')) {
+                        db.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
+                        console.log('创建items存储对象成功');
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    console.log('数据库打开成功');
+                    db = event.target.result;
+                    
+                    // 确保数据库连接有效
+                    db.onversionchange = () => {
+                        db.close();
+                        alert('数据库已过时，请刷新页面');
+                    };
+                    
+                    // 立即加载数据
+                    loadItems();
+                };
+            } catch (error) {
+                console.error('初始化数据库时出错:', error);
+                alert('初始化数据库失败，请刷新页面后重试');
+            }
+        };
+
+        // 修改从IndexedDB加载数据的函数
         const loadItems = () => {
             const transaction = db.transaction(['items'], 'readonly');
             const store = transaction.objectStore('items');
@@ -734,7 +891,9 @@
             };
 
             request.onsuccess = () => {
+                // 直接加载数据并渲染，不使用延迟
                 items = request.result.map(item => item.value);
+                console.log(`数据加载成功，共 ${items.length} 条记录`);
                 refreshList();
                 
                 // 检查是否需要显示指南
@@ -745,72 +904,68 @@
             };
         };
 
-        // 保存数据到IndexedDB
-        const saveItem = (value) => {
-            const transaction = db.transaction(['items'], 'readwrite');
-            const store = transaction.objectStore('items');
-            
-            const request = store.add({ value });
-            
-            request.onerror = (event) => {
-                console.error('保存数据错误：', event.target.error);
-            };
-            
-            transaction.oncomplete = () => {
-                loadItems(); // 确保数据加载完成
-            };
-        };
-
         // 更新IndexedDB中的数据
         const updateItem = (index, newValue) => {
-            const transaction = db.transaction(['items'], 'readwrite');
-            const store = transaction.objectStore('items');
-            
-            // 先获取要更新的记录
-            const cursorRequest = store.openCursor();
-            let count = 0;
-            
-            cursorRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    if (count === index) {
-                        cursor.update({ id: cursor.key, value: newValue });
+            try {
+                const transaction = db.transaction(['items'], 'readwrite');
+                const store = transaction.objectStore('items');
+                
+                // 先获取要更新的记录
+                const cursorRequest = store.openCursor();
+                let count = 0;
+                
+                cursorRequest.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        if (count === index) {
+                            cursor.update({ id: cursor.key, value: newValue });
+                        }
+                        count++;
+                        cursor.continue();
                     }
-                    count++;
-                    cursor.continue();
-                }
-            };
+                };
 
-            transaction.oncomplete = () => {
-                loadItems();
-            };
+                transaction.oncomplete = () => {
+                    console.log('更新数据成功，重新加载数据');
+                    loadItems(); // 直接加载数据
+                };
+            } catch (error) {
+                console.error('更新数据时出错:', error);
+                alert('更新数据失败，请刷新页面后重试');
+            }
         };
 
-        // 从IndexedDB删除数据
+        // 优化删除数据的函数
         const deleteItem = (index) => {
-            const transaction = db.transaction(['items'], 'readwrite');
-            const store = transaction.objectStore('items');
-            
-            const cursorRequest = store.openCursor();
-            let count = 0;
-            
-            cursorRequest.onsuccess = (event) => {
-                const cursor = event.target.result;
-                if (cursor) {
-                    if (count === index) {
-                        cursor.delete();
+            try {
+                const transaction = db.transaction(['items'], 'readwrite');
+                const store = transaction.objectStore('items');
+                
+                const cursorRequest = store.openCursor();
+                let count = 0;
+                
+                cursorRequest.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        if (count === index) {
+                            cursor.delete();
+                        }
+                        count++;
+                        cursor.continue();
                     }
-                    count++;
-                    cursor.continue();
-                }
-            };
+                };
 
-            transaction.oncomplete = () => {
-                loadItems();
-            };
+                transaction.oncomplete = () => {
+                    console.log('删除数据成功，重新加载数据');
+                    loadItems(); // 直接加载数据
+                };
+            } catch (error) {
+                console.error('删除数据时出错:', error);
+                alert('删除数据失败，请刷新页面后重试');
+            }
         };
 
-        // 添加删除地点及其资产的函数
+        // 优化删除地点及其资产的函数
         function deleteLocationAndAssets(locationIndex) {
             // 确保该索引存在且是地点行
             if (!items[locationIndex] || !items[locationIndex].startsWith('@')) {
@@ -832,218 +987,648 @@
             // 计算要删除的项目数
             const deleteCount = nextLocationIndex - locationIndex;
             
-            const transaction = db.transaction(['items'], 'readwrite');
-            const store = transaction.objectStore('items');
+            // 显示删除中提示
+            showToast('正在删除中...');
             
-            // 先获取所有数据
-            const getAllRequest = store.getAll();
-            
-            getAllRequest.onsuccess = () => {
-                const allItems = getAllRequest.result;
+            // 使用requestAnimationFrame确保UI更新后再执行复杂操作
+            requestAnimationFrame(() => {
+                const transaction = db.transaction(['items'], 'readwrite');
+                const store = transaction.objectStore('items');
                 
-                // 清除store后重新添加数据，跳过要删除的部分
-                store.clear().onsuccess = () => {
-                    // 添加删除前的数据
-                    for (let i = 0; i < locationIndex; i++) {
-                        store.add(allItems[i]);
-                    }
+                // 先获取所有数据
+                const getAllRequest = store.getAll();
+                
+                getAllRequest.onsuccess = () => {
+                    const allItems = getAllRequest.result;
                     
-                    // 添加删除后的数据
-                    for (let i = locationIndex + deleteCount; i < allItems.length; i++) {
-                        store.add(allItems[i]);
-                    }
-                    
-                    transaction.oncomplete = () => {
-                        loadItems();
-                        showToast(`已删除"${items[locationIndex]}"及其所有资产`);
+                    // 清除store后重新添加数据，跳过要删除的部分
+                    store.clear().onsuccess = () => {
+                        // 分批添加数据以提高性能
+                        const batchSize = 100;
+                        let currentIndex = 0;
+                        
+                        function addBatch() {
+                            // 添加删除前的数据
+                            const endIndex = Math.min(currentIndex + batchSize, locationIndex);
+                            for (let i = currentIndex; i < endIndex; i++) {
+                                store.add(allItems[i]);
+                            }
+                            
+                            currentIndex = endIndex;
+                            
+                            // 如果还未添加完删除前的数据
+                            if (currentIndex < locationIndex) {
+                                setTimeout(addBatch, 0);
+                                return;
+                            }
+                            
+                            // 开始添加删除后的数据
+                            currentIndex = locationIndex + deleteCount;
+                            addRemainingBatch();
+                        }
+                        
+                        function addRemainingBatch() {
+                            // 添加删除后的数据
+                            const endIndex = Math.min(currentIndex + batchSize, allItems.length);
+                            for (let i = currentIndex; i < endIndex; i++) {
+                                store.add(allItems[i]);
+                            }
+                            
+                            currentIndex = endIndex;
+                            
+                            // 如果还未添加完所有数据
+                            if (currentIndex < allItems.length) {
+                                setTimeout(addRemainingBatch, 0);
+                            }
+                        }
+                        
+                        // 开始第一批添加
+                        addBatch();
+                        
+                        transaction.oncomplete = () => {
+                            // 添加防抖
+                            if (saveItemTimeout) clearTimeout(saveItemTimeout);
+                            saveItemTimeout = setTimeout(() => {
+                                loadItems();
+                                showToast(`已删除"${items[locationIndex]}"及其所有资产`);
+                            }, 50);
+                        };
                     };
                 };
-            };
+            });
         }
 
-        // 修改 refreshList 函数，为每个地点下的资产添加编号
+        // 修改 refreshList 函数，简化处理逻辑
         function refreshList() {
+            console.log('刷新列表中，数据条数:', items.length);
+            
+            // 暂时禁用高级功能，确保基本显示正常
+            const useSimpleMode = true;
+            
+            if (useSimpleMode || items.length < 500) {
+                // 使用简单模式渲染，确保可以显示
+                renderSimpleList();
+            } else {
+                // 使用分批模式渲染
+                if (appSettings && typeof appSettings.adjustForDataSize === 'function') {
+                    appSettings.adjustForDataSize();
+                    
+                    if (appSettings.usePagination) {
+                        renderPaginatedItems();
+                    } else {
+                        renderBatchedItems();
+                    }
+                } else {
+                    renderSimpleList(); // 降级到简单渲染
+                }
+            }
+        }
+
+        // 添加简单渲染函数，确保基本功能可用
+        function renderSimpleList() {
+            // 使用DocumentFragment减少重排重绘
+            const fragment = document.createDocumentFragment();
             let currentLocationIndex = -1;
             let assetCounter = 0;
             
-            dataList.innerHTML = items.map((item, index) => {
+            // 创建和填充每个列表项
+            items.forEach((item, index) => {
+                const listItem = document.createElement('div');
+                
                 if (item.startsWith('@')) {
                     currentLocationIndex = index;
                     assetCounter = 0;
-                    return `<div class="list-item location-item" data-location-index="${index}" data-index="${index}">
+                    listItem.className = 'list-item location-item';
+                    listItem.setAttribute('data-location-index', index);
+                    listItem.setAttribute('data-index', index);
+                    
+                    listItem.innerHTML = `
                         <div class="item-text">
                             <span class="collapse-icon">${index === 0 ? '▶' : '▼'}</span> ${item}
                         </div>
                         <button class="location-edit-btn" data-location="${index}" title="批量编辑此地点及资产">✏️</button>
-                    </div>`;
+                    `;
                 } else {
                     assetCounter++;
-                    return `<div class="list-item asset-item" data-belongs-to="${currentLocationIndex}" data-index="${index}"
-                        style="${currentLocationIndex === 0 ? 'display: none;' : ''}">
+                    listItem.className = 'list-item asset-item';
+                    listItem.setAttribute('data-belongs-to', currentLocationIndex);
+                    listItem.setAttribute('data-index', index);
+                    
+                    if (currentLocationIndex === 0) {
+                        listItem.style.display = 'none';
+                    }
+                    
+                    listItem.innerHTML = `
                         <div class="item-text"><span class="asset-number">${assetCounter}. </span>${item}</div>
-                    </div>`;
+                    `;
                 }
-            }).join('');
-
-            // 添加地点行的点击事件
-            const locationItems = document.querySelectorAll('.location-item');
-            locationItems.forEach(item => {
-                item.addEventListener('click', (e) => {
-                    // 只有点击折叠图标或文本时才触发折叠/展开
-                    if (!e.target.closest('.swipe-action')) {
-                        const locationIndex = parseInt(item.getAttribute('data-location-index'));
-                        const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
-                        const collapseIcon = item.querySelector('.collapse-icon');
-                        
-                        // 切换资产显示状态
-                        assets.forEach(asset => {
-                            if (asset.style.display === 'none') {
-                                asset.style.display = 'flex';
-                                collapseIcon.textContent = '▼';
-                            } else {
-                                asset.style.display = 'none';
-                                collapseIcon.textContent = '▶';
-                            }
-                        });
-                    }
-                });
+                
+                fragment.appendChild(listItem);
             });
-
-            // 修改为所有列表项添加双击复制功能
-            const allListItems = document.querySelectorAll('.list-item');
-            allListItems.forEach(item => {
-                let startX = 0;
-                let currentX = 0;
-                let isSwiping = false;
-                const itemIndex = parseInt(item.getAttribute('data-index'));
+            
+            // 清空容器并一次性添加所有元素
+            dataList.innerHTML = '';
+            dataList.appendChild(fragment);
+            
+            // 使用事件委托添加事件处理
+            setupEventDelegation();
+        }
+        
+        // 添加分页渲染函数
+        function renderPaginatedItems() {
+            const totalItems = items.length;
+            const totalPages = Math.ceil(totalItems / appSettings.pageSize);
+            
+            // 确保当前页在有效范围内
+            if (appSettings.currentPage < 1) appSettings.currentPage = 1;
+            if (appSettings.currentPage > totalPages) appSettings.currentPage = totalPages;
+            
+            // 计算当前页的起始和结束索引
+            const startIdx = (appSettings.currentPage - 1) * appSettings.pageSize;
+            const endIdx = Math.min(startIdx + appSettings.pageSize, totalItems);
+            
+            // 显示加载提示和分页控制
+            dataList.innerHTML = `
+                <div class="pagination-controls">
+                    <span>总共 ${totalItems} 项，第 ${appSettings.currentPage}/${totalPages} 页</span>
+                    <div class="pagination-buttons">
+                        <button id="prevPage" ${appSettings.currentPage === 1 ? 'disabled' : ''}>上一页</button>
+                        <button id="nextPage" ${appSettings.currentPage === totalPages ? 'disabled' : ''}>下一页</button>
+                    </div>
+                </div>
+                <div class="loading-indicator">数据加载中，请稍候...</div>
+            `;
+            
+            // 获取分页按钮引用
+            const prevPageBtn = document.getElementById('prevPage');
+            const nextPageBtn = document.getElementById('nextPage');
+            
+            // 添加事件监听器
+            prevPageBtn.addEventListener('click', () => {
+                if (appSettings.currentPage > 1) {
+                    appSettings.currentPage--;
+                    refreshList();
+                }
+            });
+            
+            nextPageBtn.addEventListener('click', () => {
+                if (appSettings.currentPage < totalPages) {
+                    appSettings.currentPage++;
+                    refreshList();
+                }
+            });
+            
+            // 使用setTimeout避免阻塞UI
+            setTimeout(() => {
+                const fragment = document.createDocumentFragment();
+                let currentLocationIndex = -1;
+                let assetCounter = 0;
                 
-                // 添加双击复制事件
-                item.addEventListener('dblclick', (e) => {
-                    // 如果点击的是按钮，不触发复制
-                    if (e.target.classList.contains('action-btn') || e.target.classList.contains('collapse-icon')) {
-                        return;
+                // 查找最近的地点行索引
+                for (let i = startIdx - 1; i >= 0; i--) {
+                    if (items[i].startsWith('@')) {
+                        currentLocationIndex = i;
+                        
+                        // 计算此地点下已有多少资产
+                        for (let j = i + 1; j < startIdx; j++) {
+                            if (!items[j].startsWith('@')) {
+                                assetCounter++;
+                            } else {
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                
+                // 删除加载提示但保留分页控制
+                const loadingIndicator = document.querySelector('.loading-indicator');
+                if (loadingIndicator) {
+                    loadingIndicator.remove();
+                }
+                
+                // 创建数据容器
+                const itemsContainer = document.createElement('div');
+                itemsContainer.className = 'paginated-items';
+                
+                // 渲染当前页的数据项
+                for (let i = startIdx; i < endIdx; i++) {
+                    const item = items[i];
+                    const listItem = document.createElement('div');
+                    
+                    if (item.startsWith('@')) {
+                        currentLocationIndex = i;
+                        assetCounter = 0;
+                        listItem.className = 'list-item location-item';
+                        listItem.setAttribute('data-location-index', i);
+                        listItem.setAttribute('data-index', i);
+                        
+                        listItem.innerHTML = `
+                            <div class="item-text">
+                                <span class="collapse-icon">${i === 0 ? '▶' : '▼'}</span> ${item}
+                            </div>
+                            <button class="location-edit-btn" data-location="${i}" title="批量编辑此地点及资产">✏️</button>
+                        `;
+                    } else {
+                        assetCounter++;
+                        listItem.className = 'list-item asset-item';
+                        listItem.setAttribute('data-belongs-to', currentLocationIndex);
+                        listItem.setAttribute('data-index', i);
+                        
+                        if (currentLocationIndex === 0) {
+                            listItem.style.display = 'none';
+                        }
+                        
+                        listItem.innerHTML = `
+                            <div class="item-text"><span class="asset-number">${assetCounter}. </span>${item}</div>
+                        `;
                     }
                     
-                    const text = item.querySelector('.item-text').textContent.trim();
-                    copyToClipboard(text);
-                    showToast('已复制到剪贴板！');
-                });
+                    itemsContainer.appendChild(listItem);
+                }
                 
-                // 触摸开始/鼠标按下 (只保留滑动功能，移除长按复制功能)
-                const handleStart = (e) => {
-                    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                    startX = clientX;
-                    currentX = clientX;
-                    isSwiping = true;
-                };
+                fragment.appendChild(itemsContainer);
+                dataList.appendChild(fragment);
                 
-                // 触摸移动/鼠标移动
-                const handleMove = (e) => {
-                    if (!isSwiping) return;
-                    
-                    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
-                    currentX = clientX;
-                    const diffX = currentX - startX;
-                    
-                    // 应用滑动效果
-                    if (Math.abs(diffX) < 100) { // 限制滑动距离
-                        item.style.transform = `translateX(${diffX}px)`;
+                // 使用事件委托添加事件处理
+                setupEventDelegation();
+            }, 10);
+        }
+        
+        // 添加分批渲染函数，用于处理大量数据
+        function renderBatchedItems() {
+            let batchSize = 100; // 每批渲染的项目数
+            let currentBatch = 0;
+            let totalBatches = Math.ceil(items.length / batchSize);
+            
+            // 显示加载提示
+            dataList.innerHTML = '<div class="loading-indicator">数据加载中，请稍候...</div>';
+            
+            function renderBatch() {
+                if (currentBatch >= totalBatches) {
+                    // 所有批次都已渲染完成，设置事件委托
+                    setupEventDelegation();
+                    return;
+                }
+                
+                const fragment = document.createDocumentFragment();
+                let startIndex = currentBatch * batchSize;
+                let endIndex = Math.min(startIndex + batchSize, items.length);
+                let currentLocationIndex = -1;
+                let assetCounter = 0;
+                
+                // 查找最近的地点行索引
+                for (let i = startIndex - 1; i >= 0; i--) {
+                    if (items[i].startsWith('@')) {
+                        currentLocationIndex = i;
                         
-                        // 改变背景色以提示操作
-                        if (diffX > 30) { // 右滑 - 删除
-                            item.style.backgroundColor = 'rgba(220, 53, 69, 0.2)'; // 淡红色
-                        } else if (diffX < -30) { // 左滑 - 编辑
-                            item.style.backgroundColor = 'rgba(40, 167, 69, 0.2)'; // 淡绿色
-                        } else {
-                            item.style.backgroundColor = '';
+                        // 计算此地点下已有多少资产
+                        for (let j = i + 1; j < startIndex; j++) {
+                            if (!items[j].startsWith('@')) {
+                                assetCounter++;
+                            } else {
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                
+                // 删除加载提示(仅第一批)
+                if (currentBatch === 0) {
+                    dataList.innerHTML = '';
+                }
+                
+                // 创建此批次的元素
+                for (let i = startIndex; i < endIndex; i++) {
+                    const item = items[i];
+                    const listItem = document.createElement('div');
+                    
+                    if (item.startsWith('@')) {
+                        currentLocationIndex = i;
+                        assetCounter = 0;
+                        listItem.className = 'list-item location-item';
+                        listItem.setAttribute('data-location-index', i);
+                        listItem.setAttribute('data-index', i);
+                        
+                        listItem.innerHTML = `
+                            <div class="item-text">
+                                <span class="collapse-icon">${i === 0 ? '▶' : '▼'}</span> ${item}
+                            </div>
+                            <button class="location-edit-btn" data-location="${i}" title="批量编辑此地点及资产">✏️</button>
+                        `;
+                    } else {
+                        assetCounter++;
+                        listItem.className = 'list-item asset-item';
+                        listItem.setAttribute('data-belongs-to', currentLocationIndex);
+                        listItem.setAttribute('data-index', i);
+                        
+                        if (currentLocationIndex === 0) {
+                            listItem.style.display = 'none';
+                        }
+                        
+                        listItem.innerHTML = `
+                            <div class="item-text"><span class="asset-number">${assetCounter}. </span>${item}</div>
+                        `;
+                    }
+                    
+                    fragment.appendChild(listItem);
+                }
+                
+                dataList.appendChild(fragment);
+                
+                // 安排下一批次渲染
+                currentBatch++;
+                setTimeout(renderBatch, 0);
+            }
+            
+            // 开始渲染第一批
+            setTimeout(renderBatch, 0);
+        }
+        
+        // 点击事件处理
+        function handleListClick(e) {
+            try {
+                const listItem = e.target.closest('.list-item');
+                if (!listItem) return;
+                
+                // 地点项的点击事件（折叠/展开）
+                if (listItem.classList.contains('location-item') && 
+                    !e.target.classList.contains('location-edit-btn')) {
+                    
+                    const locationIndex = parseInt(listItem.getAttribute('data-location-index'));
+                    const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                    const collapseIcon = listItem.querySelector('.collapse-icon');
+                    
+                    console.log(`点击地点行 ${locationIndex}，找到 ${assets.length} 个资产项`);
+                    
+                    if (assets.length === 0) return; // 没有资产项
+                    
+                    // 检查第一个资产是否隐藏，来判断当前状态
+                    const isCollapsed = assets[0].style.display === 'none';
+                    
+                    // 切换资产显示状态
+                    assets.forEach(asset => {
+                        asset.style.display = isCollapsed ? 'flex' : 'none';
+                    });
+                    
+                    collapseIcon.textContent = isCollapsed ? '▼' : '▶';
+                }
+                
+                // 地点编辑按钮的点击事件
+                if (e.target.classList.contains('location-edit-btn')) {
+                    e.stopPropagation();
+                    const locationIndex = parseInt(e.target.getAttribute('data-location'));
+                    openLocationEditor(locationIndex);
+                }
+            } catch (error) {
+                console.error('点击事件处理出错:', error);
+            }
+        }
+        
+        // 双击事件处理 - 复制功能
+        function handleListDblClick(e) {
+            const listItem = e.target.closest('.list-item');
+            if (!listItem) return;
+            
+            // 如果点击的是按钮或折叠图标，不触发复制
+            if (e.target.classList.contains('action-btn') || 
+                e.target.classList.contains('collapse-icon') ||
+                e.target.classList.contains('location-edit-btn')) {
+                return;
+            }
+            
+            const text = listItem.querySelector('.item-text').textContent.trim();
+            copyToClipboard(text);
+            showToast('已复制到剪贴板！');
+        }
+        
+        // 触摸/鼠标事件相关变量
+        let touchStartX = 0;
+        let touchCurrentX = 0;
+        let isSwiping = false;
+        let activeItem = null;
+        
+        // 鼠标按下事件
+        function handleListMouseDown(e) {
+            const listItem = e.target.closest('.list-item');
+            if (!listItem) return;
+            
+            // 如果点击的是按钮或折叠图标，不触发滑动
+            if (e.target.classList.contains('action-btn') || 
+                e.target.classList.contains('collapse-icon') ||
+                e.target.classList.contains('location-edit-btn')) {
+                return;
+            }
+            
+            touchStartX = e.clientX;
+            touchCurrentX = e.clientX;
+            isSwiping = true;
+            activeItem = listItem;
+        }
+        
+        // 鼠标移动事件
+        function handleListMouseMove(e) {
+            if (!isSwiping || !activeItem) return;
+            
+            touchCurrentX = e.clientX;
+            const diffX = touchCurrentX - touchStartX;
+            
+            // 应用滑动效果
+            if (Math.abs(diffX) < 100) { // 限制滑动距离
+                activeItem.style.transform = `translateX(${diffX}px)`;
+                
+                // 改变背景色以提示操作
+                if (diffX > 30) { // 右滑 - 删除
+                    activeItem.style.backgroundColor = 'rgba(220, 53, 69, 0.2)'; // 淡红色
+                } else if (diffX < -30) { // 左滑 - 编辑
+                    activeItem.style.backgroundColor = 'rgba(40, 167, 69, 0.2)'; // 淡绿色
+                } else {
+                    activeItem.style.backgroundColor = '';
+                }
+            }
+        }
+        
+        // 鼠标抬起事件
+        function handleListMouseUp(e) {
+            if (!isSwiping || !activeItem) return;
+            
+            const diffX = touchCurrentX - touchStartX;
+            const itemIndex = parseInt(activeItem.getAttribute('data-index'));
+            
+            // 重置样式
+            activeItem.style.transition = 'transform 0.3s, background-color 0.3s';
+            activeItem.style.transform = 'translateX(0)';
+            activeItem.style.backgroundColor = '';
+            
+            // 执行相应操作
+            if (Math.abs(diffX) > 50) { // 需要滑动50px以上才触发操作
+                if (diffX > 50) { // 右滑 - 删除
+                    // 判断是否为地点行
+                    if (activeItem.classList.contains('location-item')) {
+                        if (confirm('确定要删除此地点及其所有资产吗？此操作不可恢复！')) {
+                            deleteLocationAndAssets(itemIndex);
+                        }
+                    } else {
+                        // 普通资产行删除
+                        if (confirm('确定要删除这条记录吗？')) {
+                            deleteItem(itemIndex);
                         }
                     }
-                };
-                
-                // 触摸结束/鼠标松开
-                const handleEnd = (e) => {
-                    isSwiping = false;
-                    
-                    const diffX = currentX - startX;
-                    
-                    // 重置样式
-                    item.style.transition = 'transform 0.3s, background-color 0.3s';
-                    item.style.transform = 'translateX(0)';
-                    item.style.backgroundColor = '';
-                    
-                    // 执行相应操作
-                    if (Math.abs(diffX) > 50) { // 需要滑动50px以上才触发操作
-                        if (diffX > 50) { // 右滑 - 删除
-                            const itemIndex = parseInt(item.getAttribute('data-index'));
-                            
-                            // 判断是否为地点行
-                            if (item.classList.contains('location-item')) {
-                                if (confirm('确定要删除此地点及其所有资产吗？此操作不可恢复！')) {
-                                    deleteLocationAndAssets(itemIndex);
-                                }
-                            } else {
-                                // 普通资产行删除
-                    if (confirm('确定要删除这条记录吗？')) {
-                                    deleteItem(itemIndex);
-                                }
-                            }
-                        } else if (diffX < -50) { // 左滑 - 编辑
-                            currentEditIndex = itemIndex;
-                            editInput.value = items[itemIndex];
+                } else if (diffX < -50) { // 左滑 - 编辑
+                    currentEditIndex = itemIndex;
+                    editInput.value = items[itemIndex];
                     editModal.style.display = 'block';
                     overlay.style.display = 'block';
-                            
-                            // 添加这段代码，将光标放在文本末尾
-                            setTimeout(() => {
-                                editInput.focus();
-                                editInput.selectionStart = editInput.value.length;
-                                editInput.selectionEnd = editInput.value.length;
-                            }, 50);
+                    
+                    // 添加这段代码，将光标放在文本末尾
+                    setTimeout(() => {
+                        editInput.focus();
+                        editInput.selectionStart = editInput.value.length;
+                        editInput.selectionEnd = editInput.value.length;
+                    }, 50);
+                }
+            }
+            
+            // 300ms后移除过渡效果
+            setTimeout(() => {
+                if (activeItem) {
+                    activeItem.style.transition = '';
+                }
+            }, 300);
+            
+            isSwiping = false;
+            activeItem = null;
+        }
+        
+        // 鼠标离开事件
+        function handleListMouseLeave(e) {
+            if (!isSwiping || !activeItem) return;
+            
+            // 重置样式
+            activeItem.style.transition = 'transform 0.3s, background-color 0.3s';
+            activeItem.style.transform = 'translateX(0)';
+            activeItem.style.backgroundColor = '';
+            
+            setTimeout(() => {
+                if (activeItem) {
+                    activeItem.style.transition = '';
+                }
+            }, 300);
+            
+            isSwiping = false;
+            activeItem = null;
+        }
+        
+        // 触摸开始事件
+        function handleListTouchStart(e) {
+            const listItem = e.target.closest('.list-item');
+            if (!listItem) return;
+            
+            // 如果触摸的是按钮或折叠图标，不触发滑动
+            if (e.target.classList.contains('action-btn') || 
+                e.target.classList.contains('collapse-icon') ||
+                e.target.classList.contains('location-edit-btn')) {
+                return;
+            }
+            
+            touchStartX = e.touches[0].clientX;
+            touchCurrentX = e.touches[0].clientX;
+            isSwiping = true;
+            activeItem = listItem;
+        }
+        
+        // 触摸移动事件
+        function handleListTouchMove(e) {
+            if (!isSwiping || !activeItem) return;
+            
+            touchCurrentX = e.touches[0].clientX;
+            const diffX = touchCurrentX - touchStartX;
+            
+            // 应用滑动效果
+            if (Math.abs(diffX) < 100) { // 限制滑动距离
+                activeItem.style.transform = `translateX(${diffX}px)`;
+                
+                // 改变背景色以提示操作
+                if (diffX > 30) { // 右滑 - 删除
+                    activeItem.style.backgroundColor = 'rgba(220, 53, 69, 0.2)'; // 淡红色
+                } else if (diffX < -30) { // 左滑 - 编辑
+                    activeItem.style.backgroundColor = 'rgba(40, 167, 69, 0.2)'; // 淡绿色
+                } else {
+                    activeItem.style.backgroundColor = '';
+                }
+            }
+        }
+        
+        // 触摸结束事件
+        function handleListTouchEnd(e) {
+            if (!isSwiping || !activeItem) return;
+            
+            const diffX = touchCurrentX - touchStartX;
+            const itemIndex = parseInt(activeItem.getAttribute('data-index'));
+            
+            // 重置样式
+            activeItem.style.transition = 'transform 0.3s, background-color 0.3s';
+            activeItem.style.transform = 'translateX(0)';
+            activeItem.style.backgroundColor = '';
+            
+            // 执行相应操作
+            if (Math.abs(diffX) > 50) { // 需要滑动50px以上才触发操作
+                if (diffX > 50) { // 右滑 - 删除
+                    // 判断是否为地点行
+                    if (activeItem.classList.contains('location-item')) {
+                        if (confirm('确定要删除此地点及其所有资产吗？此操作不可恢复！')) {
+                            deleteLocationAndAssets(itemIndex);
+                        }
+                    } else {
+                        // 普通资产行删除
+                        if (confirm('确定要删除这条记录吗？')) {
+                            deleteItem(itemIndex);
                         }
                     }
+                } else if (diffX < -50) { // 左滑 - 编辑
+                    currentEditIndex = itemIndex;
+                    editInput.value = items[itemIndex];
+                    editModal.style.display = 'block';
+                    overlay.style.display = 'block';
                     
-                    // 300ms后移除过渡效果
+                    // 添加这段代码，将光标放在文本末尾
                     setTimeout(() => {
-                        item.style.transition = '';
-                    }, 300);
-                };
-                
-                // 取消操作
-                const handleCancel = () => {
-                    isSwiping = false;
-                    
-                    item.style.transition = 'transform 0.3s, background-color 0.3s';
-                    item.style.transform = 'translateX(0)';
-                    item.style.backgroundColor = '';
-                    
-                    setTimeout(() => {
-                        item.style.transition = '';
-                    }, 300);
-                };
-                
-                // 鼠标事件
-                item.addEventListener('mousedown', handleStart);
-                item.addEventListener('mousemove', handleMove);
-                item.addEventListener('mouseup', handleEnd);
-                item.addEventListener('mouseleave', handleCancel);
-                
-                // 触摸事件
-                item.addEventListener('touchstart', handleStart);
-                item.addEventListener('touchmove', handleMove);
-                item.addEventListener('touchend', handleEnd);
-                item.addEventListener('touchcancel', handleCancel);
-            });
-
-            // 添加地点编辑按钮的点击事件
-            const locationEditButtons = document.querySelectorAll('.location-edit-btn');
-            locationEditButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.stopPropagation(); // 阻止事件冒泡，避免触发折叠/展开
-                    
-                    const locationIndex = parseInt(button.getAttribute('data-location'));
-                    openLocationEditor(locationIndex);
-                });
-            });
+                        editInput.focus();
+                        editInput.selectionStart = editInput.value.length;
+                        editInput.selectionEnd = editInput.value.length;
+                    }, 50);
+                }
+            }
+            
+            // 300ms后移除过渡效果
+            setTimeout(() => {
+                if (activeItem) {
+                    activeItem.style.transition = '';
+                }
+            }, 300);
+            
+            isSwiping = false;
+            activeItem = null;
+        }
+        
+        // 触摸取消事件
+        function handleListTouchCancel(e) {
+            if (!isSwiping || !activeItem) return;
+            
+            // 重置样式
+            activeItem.style.transition = 'transform 0.3s, background-color 0.3s';
+            activeItem.style.transform = 'translateX(0)';
+            activeItem.style.backgroundColor = '';
+            
+            setTimeout(() => {
+                if (activeItem) {
+                    activeItem.style.transition = '';
+                }
+            }, 300);
+            
+            isSwiping = false;
+            activeItem = null;
         }
 
         // 打开地点批量编辑器
@@ -1130,7 +1715,7 @@
                 store.clear().onsuccess = () => {
                     // 添加编辑前的数据
                     for (let i = 0; i < startIndex; i++) {
-                        store.add({ value: allItems[i] });
+                        store.add(allItems[i]);
                     }
                     
                     // 添加编辑后的数据
@@ -1350,30 +1935,31 @@
         function addNewItem() {
             let newItem = itemInput.value.trim();
             if (newItem) {
-                // 处理连续空格
-                newItem = normalizeSpaces(newItem);
-                
-                // 检查是否是重复的@开头行
-                if (checkDuplicateLocation(newItem)) {
-                    showErrorToast('该地点已存在，请勿重复添加！');
-                    return;
-                }
-                
-                // 使用Promise确保数据保存和加载的顺序
-                new Promise((resolve) => {
-                saveItem(newItem);
-                    resolve();
-                }).then(() => {
-                itemInput.value = '';
-                suggestions.style.display = 'none';
+                try {
+                    // 处理连续空格
+                    newItem = normalizeSpaces(newItem);
+                    
+                    // 检查是否是重复的@开头行
+                    if (checkDuplicateLocation(newItem)) {
+                        showErrorToast('该地点已存在，请勿重复添加！');
+                        return;
+                    }
+                    
+                    console.log('添加新项目:', newItem);
+                    saveItem(newItem);
+                    itemInput.value = '';
+                    suggestions.style.display = 'none';
                     itemInput.focus();
-                
-                // 等待数据加载完成后滚动到底部并显示提示
-                setTimeout(() => {
-                    scrollToBottom();
-                    showToast('添加成功！');
-                }, 100);
-                });
+                    
+                    // 延迟一点滚动到底部，确保数据加载完成
+                    setTimeout(() => {
+                        scrollToBottom();
+                        showToast('添加成功！');
+                    }, 200);
+                } catch (error) {
+                    console.error('添加新项目时出错:', error);
+                    showErrorToast('添加失败，请重试');
+                }
             }
         }
 
@@ -1450,68 +2036,102 @@
             }, 3000);
         }
 
-        // 修改批量修改函数
+        // 优化批量修改函数
         const bulkUpdateItems = (values) => {
-            const transaction = db.transaction(['items'], 'readwrite');
-            const store = transaction.objectStore('items');
-            
-            // 检查新数据中的地点是否有重复
-            const newLocations = new Set();
-            const duplicateLocations = [];
-            
-            // 处理输入值，替换连续空格
-            const processedValues = values.map(value => normalizeSpaces(value.trim()));
-            
-            // 检查新数据中的地点重复
-            for (const value of processedValues) {
-                if (value.startsWith('@')) {
-                    const location = value.substring(1, value.indexOf(' ') > 0 ? value.indexOf(' ') : value.length);
-                    
-                    // 检查新数据内部是否有重复
-                    if (newLocations.has(location)) {
-                        duplicateLocations.push(location);
-                        continue;
-                    }
-                    
-                    newLocations.add(location);
-                }
-            }
-            
-            // 如果有重复地点，显示错误信息但不关闭模态框
-            if (duplicateLocations.length > 0) {
-                showErrorToast(`发现重复地点: "${duplicateLocations.join('", "')}"，请修正后重试`);
-                return false; // 返回false表示有错误
-            }
-            
-            // 没有重复地点，执行修改
-            store.clear().onsuccess = () => {
-                let addedCount = 0;
-                const addItems = processedValues.map(value => {
-                    return new Promise((resolve) => {
-                        if (value) {
-                            const request = store.add({ value: value });
-                            request.onsuccess = () => {
-                                addedCount++;
-                                resolve();
-                            };
-                            request.onerror = () => {
-                                console.error('添加数据失败:', value);
-                                resolve();
-                            };
-                        } else {
-                            resolve();
-                        }
-                    });
-                });
+            return new Promise((resolve) => {
+                const transaction = db.transaction(['items'], 'readwrite');
+                const store = transaction.objectStore('items');
                 
-                Promise.all(addItems).then(() => {
-                    transaction.oncomplete = () => {
-                        loadItems();
-                        showToast(`批量修改成功，共更新${addedCount}条数据！`);
+                // 检查新数据中的地点是否有重复
+                const newLocations = new Set();
+                const duplicateLocations = [];
+                
+                // 处理输入值，替换连续空格
+                const processedValues = values.map(value => normalizeSpaces(value.trim()));
+                
+                // 检查新数据中的地点重复
+                for (const value of processedValues) {
+                    if (value.startsWith('@')) {
+                        const location = value.substring(1, value.indexOf(' ') > 0 ? value.indexOf(' ') : value.length);
+                        
+                        // 检查新数据内部是否有重复
+                        if (newLocations.has(location)) {
+                            duplicateLocations.push(location);
+                            continue;
+                        }
+                        
+                        newLocations.add(location);
+                    }
+                }
+                
+                // 如果有重复地点，显示错误信息但不关闭模态框
+                if (duplicateLocations.length > 0) {
+                    showErrorToast(`发现重复地点: "${duplicateLocations.join('", "')}"，请修正后重试`);
+                    resolve(false); // 返回false表示有错误
+                    return;
+                }
+                
+                // 显示处理中提示
+                showToast('正在处理数据...');
+                
+                // 使用requestAnimationFrame确保UI更新后再执行复杂操作
+                requestAnimationFrame(() => {
+                    // 没有重复地点，执行修改
+                    store.clear().onsuccess = () => {
+                        let addedCount = 0;
+                        const totalItems = processedValues.length;
+                        let processedCount = 0;
+                        
+                        // 分批添加数据
+                        const batchSize = 100;
+                        let currentBatch = 0;
+                        
+                        function processBatch() {
+                            const startIdx = currentBatch * batchSize;
+                            const endIdx = Math.min(startIdx + batchSize, totalItems);
+                            
+                            const batchPromises = [];
+                            
+                            for (let i = startIdx; i < endIdx; i++) {
+                                const value = processedValues[i];
+                                if (value) {
+                                    const promise = new Promise((itemResolve) => {
+                                        const request = store.add({ value: value });
+                                        request.onsuccess = () => {
+                                            addedCount++;
+                                            itemResolve();
+                                        };
+                                        request.onerror = () => {
+                                            console.error('添加数据失败:', value);
+                                            itemResolve();
+                                        };
+                                    });
+                                    batchPromises.push(promise);
+                                }
+                                processedCount++;
+                            }
+                            
+                            // 等待当前批次完成
+                            Promise.all(batchPromises).then(() => {
+                                currentBatch++;
+                                if (processedCount < totalItems) {
+                                    // 安排下一批次
+                                    setTimeout(processBatch, 0);
+                                }
+                            });
+                        }
+                        
+                        // 开始处理第一批
+                        processBatch();
+                        
+                        transaction.oncomplete = () => {
+                            loadItems();
+                            showToast(`批量修改成功，共更新${addedCount}条数据！`);
+                            resolve(true);
+                        };
                     };
                 });
-            };
-            return true; // 返回true表示成功
+            });
         };
 
         // 修改批量编辑按钮的点击事件
@@ -1568,12 +2188,12 @@
             overlay.style.display = 'none';
         });
 
-        // 修改批量添加函数
+        // 优化批量添加函数
         const bulkSaveItems = (values) => {
-            return new Promise((resolve) => {  // 返回Promise以处理异步操作
-            const transaction = db.transaction(['items'], 'readwrite');
-            const store = transaction.objectStore('items');
-            
+            return new Promise((resolve) => {
+                const transaction = db.transaction(['items'], 'readwrite');
+                const store = transaction.objectStore('items');
+                
                 // 先获取所有现有数据来检查地点是否重复
                 const getAllRequest = store.getAll();
                 
@@ -1622,32 +2242,63 @@
                         return;
                     }
                     
-                    // 没有重复地点，执行导入
-                    let addedCount = 0;
-                    const addItems = processedValues.map(value => {
-                        return new Promise((resolve) => {
-                if (value) {
-                                const request = store.add({ value: value });
-                                request.onsuccess = () => {
-                                    addedCount++;
-                                    resolve();
-                                };
-                                request.onerror = () => {
-                                    console.error('添加数据失败:', value);
-                                    resolve();
-                                };
-                            } else {
-                                resolve();
-                            }
-                        });
-                    });
+                    // 显示处理中提示
+                    showToast('正在导入数据...');
                     
-                    Promise.all(addItems).then(() => {
-            transaction.oncomplete = () => {
-                loadItems();
+                    // 使用requestAnimationFrame确保UI更新后再执行复杂操作
+                    requestAnimationFrame(() => {
+                        // 没有重复地点，执行导入
+                        let addedCount = 0;
+                        const totalItems = processedValues.length;
+                        let processedCount = 0;
+                        
+                        // 分批添加数据
+                        const batchSize = 100;
+                        let currentBatch = 0;
+                        
+                        function processBatch() {
+                            const startIdx = currentBatch * batchSize;
+                            const endIdx = Math.min(startIdx + batchSize, totalItems);
+                            
+                            const batchPromises = [];
+                            
+                            for (let i = startIdx; i < endIdx; i++) {
+                                const value = processedValues[i];
+                                if (value) {
+                                    const promise = new Promise((itemResolve) => {
+                                        const request = store.add({ value: value });
+                                        request.onsuccess = () => {
+                                            addedCount++;
+                                            itemResolve();
+                                        };
+                                        request.onerror = () => {
+                                            console.error('添加数据失败:', value);
+                                            itemResolve();
+                                        };
+                                    });
+                                    batchPromises.push(promise);
+                                }
+                                processedCount++;
+                            }
+                            
+                            // 等待当前批次完成
+                            Promise.all(batchPromises).then(() => {
+                                currentBatch++;
+                                if (processedCount < totalItems) {
+                                    // 安排下一批次
+                                    setTimeout(processBatch, 0);
+                                }
+                            });
+                        }
+                        
+                        // 开始处理第一批
+                        processBatch();
+                        
+                        transaction.oncomplete = () => {
+                            loadItems();
                             showToast(`批量添加成功，共添加${addedCount}条数据！`);
-                            resolve(true);  // 操作成功完成
-            };
+                            resolve(true);
+                        };
                     });
                 };
             });
@@ -1785,27 +2436,39 @@
 
         // 添加一键折叠/展开函数
         function toggleAllLocations() {
-            const locationItems = document.querySelectorAll('.location-item');
-            isAllCollapsed = !isAllCollapsed;
-            
-            locationItems.forEach(item => {
-                // 跳过第一个地点（模板资产）
-                if (item.getAttribute('data-location-index') === '0') {
+            try {
+                const locationItems = document.querySelectorAll('.location-item');
+                if (locationItems.length === 0) {
+                    console.log('未找到地点行，无法执行折叠/展开操作');
                     return;
                 }
                 
-                const locationIndex = item.getAttribute('data-location-index');
-                const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
-                const collapseIcon = item.querySelector('.collapse-icon');
+                isAllCollapsed = !isAllCollapsed;
+                console.log(`执行${isAllCollapsed ? '折叠' : '展开'}所有地点操作`);
                 
-                assets.forEach(asset => {
-                    asset.style.display = isAllCollapsed ? 'none' : 'flex';
+                locationItems.forEach(item => {
+                    // 跳过第一个地点（模板资产）
+                    if (item.getAttribute('data-location-index') === '0') {
+                        return;
+                    }
+                    
+                    const locationIndex = item.getAttribute('data-location-index');
+                    const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                    const collapseIcon = item.querySelector('.collapse-icon');
+                    
+                    if (assets.length > 0) {
+                        assets.forEach(asset => {
+                            asset.style.display = isAllCollapsed ? 'none' : 'flex';
+                        });
+                        collapseIcon.textContent = isAllCollapsed ? '▶' : '▼';
+                    }
                 });
-                collapseIcon.textContent = isAllCollapsed ? '▶' : '▼';
-            });
-            
-            // 更新按钮图标
-            collapseAllButton.textContent = isAllCollapsed ? '▶' : '▼';
+                
+                // 更新按钮图标
+                collapseAllButton.textContent = isAllCollapsed ? '▶' : '▼';
+            } catch (error) {
+                console.error('折叠/展开所有地点时出错:', error);
+            }
         }
 
         // 添加按钮点击事件
@@ -1816,6 +2479,22 @@
 
         // 初始化显示
         refreshList();
+        
+        // 添加定期内存清理
+        setInterval(() => {
+            if (appSettings.autoReleaseMemory && items.length > 500) {
+                console.log('执行定期内存清理...');
+                nodeCache = {}; // 清空节点缓存
+                
+                // 尝试触发垃圾回收
+                if (perfMonitor.enabled && perfMonitor.memoryUsage.length > 0) {
+                    const latestMemory = perfMonitor.memoryUsage[perfMonitor.memoryUsage.length - 1];
+                    if (latestMemory.used > 200) { // 如果内存使用超过200MB
+                        perfMonitor.releaseResources();
+                    }
+                }
+            }
+        }, 60000); // 每分钟执行一次
 
         // 修改键盘事件支持
         itemInput.addEventListener('keydown', (e) => {
@@ -1855,6 +2534,239 @@
             searchModal.style.display = 'none';
             overlay.style.display = 'none';
         });
+
+        // 添加性能监控功能
+        let perfMonitor = {
+            lastRefreshTime: 0,
+            frameCount: 0,
+            memoryUsage: [],
+            enabled: false,
+            
+            // 初始化性能监控
+            init() {
+                this.lastRefreshTime = performance.now();
+                this.frameCount = 0;
+                this.memoryUsage = [];
+                this.enabled = false;
+            },
+            
+            // 记录性能数据
+            record() {
+                if (!this.enabled) return;
+                
+                this.frameCount++;
+                const currentTime = performance.now();
+                
+                // 每秒记录一次
+                if (currentTime - this.lastRefreshTime >= 1000) {
+                    const fps = Math.round(this.frameCount * 1000 / (currentTime - this.lastRefreshTime));
+                    console.log(`性能监控: FPS = ${fps}`);
+                    
+                    // 记录内存使用情况(如果浏览器支持)
+                    if (window.performance && window.performance.memory) {
+                        const memory = window.performance.memory;
+                        const memoryUsed = Math.round(memory.usedJSHeapSize / (1024 * 1024));
+                        const memoryTotal = Math.round(memory.totalJSHeapSize / (1024 * 1024));
+                        console.log(`内存使用: ${memoryUsed}MB / ${memoryTotal}MB`);
+                        
+                        this.memoryUsage.push({
+                            time: new Date(),
+                            used: memoryUsed,
+                            total: memoryTotal
+                        });
+                        
+                        // 只保留最近10次记录
+                        if (this.memoryUsage.length > 10) {
+                            this.memoryUsage.shift();
+                        }
+                    }
+                    
+                    this.frameCount = 0;
+                    this.lastRefreshTime = currentTime;
+                    
+                    // 如果内存占用过高，尝试回收一些资源
+                    this.checkMemory();
+                }
+                
+                // 请求下一帧记录
+                requestAnimationFrame(() => this.record());
+            },
+            
+            // 检查内存占用并尝试释放
+            checkMemory() {
+                if (this.memoryUsage.length < 2) return;
+                
+                const latest = this.memoryUsage[this.memoryUsage.length - 1];
+                const previous = this.memoryUsage[this.memoryUsage.length - 2];
+                
+                // 如果内存增长超过20%，尝试释放一些资源
+                if (latest.used > previous.used * 1.2 && latest.used > 200) {
+                    console.log('检测到内存使用量大幅增加，尝试优化...');
+                    this.releaseResources();
+                }
+            },
+            
+            // 释放一些不必要的资源
+            releaseResources() {
+                // 清除一些不必要的DOM引用
+                nodeCache = {};
+                
+                // 释放闲置的事件监听器
+                if (dataList.children.length > 500) {
+                    setupEventDelegation();
+                }
+                
+                // 强制垃圾回收(虽然不能直接调用，但可以尝试释放一些变量)
+                const largeArray = [];
+                // 创建大型对象然后立即释放，可能触发GC
+                for (let i = 0; i < 10000; i++) {
+                    largeArray.push(new Array(10000).fill(0));
+                }
+                largeArray.length = 0;
+            },
+            
+            // 启用性能监控
+            enable() {
+                this.enabled = true;
+                this.record();
+                console.log('性能监控已启用');
+            },
+            
+            // 停用性能监控
+            disable() {
+                this.enabled = false;
+                console.log('性能监控已停用');
+            }
+        };
+        
+        // 缓存DOM节点引用
+        let nodeCache = {};
+        
+        // 获取DOM节点的辅助函数(带缓存)
+        function getNode(selector) {
+            if (!nodeCache[selector]) {
+                nodeCache[selector] = document.querySelector(selector);
+            }
+            return nodeCache[selector];
+        }
+        
+        // 针对大型数据的优化设置
+        let appSettings = {
+            usePagination: false,      // 是否使用分页而不是无限滚动
+            pageSize: 200,             // 每页显示的项目数量
+            currentPage: 1,            // 当前页码
+            batchSize: 100,            // 批处理大小
+            lazyLoadImages: true,      // 是否延迟加载图片(如果有)
+            autoReleaseMemory: true,   // 是否自动释放内存
+            
+            // 根据数据规模自动调整设置
+            adjustForDataSize() {
+                if (items.length > 1000) {
+                    this.usePagination = true;
+                    this.pageSize = 200;
+                    this.batchSize = 100;
+                    perfMonitor.enable(); // 启用性能监控
+                } else if (items.length > 500) {
+                    this.usePagination = false;
+                    this.batchSize = 100;
+                    perfMonitor.disable(); // 停用性能监控
+                } else {
+                    this.usePagination = false;
+                    this.batchSize = items.length;
+                    perfMonitor.disable(); // 停用性能监控
+                }
+            }
+        };
+        
+        // 初始化时执行
+        perfMonitor.init();
+
+        // 在页面加载完成后执行的初始化函数
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('页面加载完成，初始化应用');
+            
+            // 初始化数据库
+            initDB();
+            
+            // 添加输入框事件监听
+            itemInput.addEventListener('input', (e) => {
+                showSuggestions(e.target.value);
+            });
+            
+            // 添加键盘事件
+            itemInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const newItem = itemInput.value.trim();
+                    if (newItem) {
+                        addNewItem();
+                    }
+                }
+            });
+            
+            // 其他按钮初始化
+            exportButton.addEventListener('click', exportToTxt);
+            batchAddButton.addEventListener('click', () => {
+                importModal.style.display = 'block';
+                overlay.style.display = 'block';
+                importInput.value = ''; // 清空输入框
+            });
+        });
+
+        // 添加检查数据显示的函数，修复可能的问题
+        function checkAndRepairDisplay() {
+            console.log('检查数据显示状态...');
+            
+            // 如果列表为空但有数据，重新渲染
+            if (dataList.children.length === 0 && items.length > 0) {
+                console.log('检测到数据未显示，重新渲染');
+                renderSimpleList();
+                return true;
+            }
+            
+            // 检查折叠状态是否一致
+            const locationItems = document.querySelectorAll('.location-item');
+            locationItems.forEach(item => {
+                const locationIndex = item.getAttribute('data-location-index');
+                const assets = document.querySelectorAll(`[data-belongs-to="${locationIndex}"]`);
+                const collapseIcon = item.querySelector('.collapse-icon');
+                
+                if (assets.length > 0) {
+                    const isHidden = assets[0].style.display === 'none';
+                    collapseIcon.textContent = isHidden ? '▶' : '▼';
+                }
+            });
+            
+            return false;
+        }
+
+        // 修改显示错误提示的函数
+        function showErrorToast(message) {
+            console.error('错误:', message);
+            
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: rgba(220, 53, 69, 0.9);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 4px;
+                z-index: 1000;
+            `;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.5s';
+                setTimeout(() => document.body.removeChild(toast), 500);
+            }, 3000);
+            
+            // 检查数据显示
+            setTimeout(checkAndRepairDisplay, 1000);
+        }
     </script>
 </body>
 </html>
