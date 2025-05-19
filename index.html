@@ -1089,7 +1089,11 @@
                 return;
             }
             
-            const editedItems = editedText.split('\n').filter(item => item.trim());
+            // 处理连续空格
+            const editedItems = editedText.split('\n')
+                .filter(item => item.trim())
+                .map(item => normalizeSpaces(item.trim()));
+            
             if (editedItems.length === 0) {
                 showErrorToast('内容不能为空');
                 return;
@@ -1147,6 +1151,11 @@
                     };
                 };
             };
+        }
+
+        // 添加处理连续空格的函数
+        function normalizeSpaces(text) {
+            return text.replace(/\s{2,}/g, ' ');
         }
 
         // 修改搜索函数，排除模板资产
@@ -1339,8 +1348,11 @@
 
         // 修改添加新项目的函数
         function addNewItem() {
-            const newItem = itemInput.value.trim();
+            let newItem = itemInput.value.trim();
             if (newItem) {
+                // 处理连续空格
+                newItem = normalizeSpaces(newItem);
+                
                 // 检查是否是重复的@开头行
                 if (checkDuplicateLocation(newItem)) {
                     showErrorToast('该地点已存在，请勿重复添加！');
@@ -1365,7 +1377,7 @@
             }
         }
 
-        // 导出TXT文件的函数
+        // 修改导出TXT文件的函数
         function exportToTxt() {
             if (items.length === 0) {
                 showErrorToast('没有数据可导出！');
@@ -1392,8 +1404,8 @@
                 return;
             }
 
-            // 只导出从第二个@行开始的数据
-            const exportItems = items.slice(startIndex);
+            // 只导出从第二个@行开始的数据，并处理连续空格
+            const exportItems = items.slice(startIndex).map(item => normalizeSpaces(item));
             const content = exportItems.join('\n');
             const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
@@ -1447,10 +1459,13 @@
             const newLocations = new Set();
             const duplicateLocations = [];
             
+            // 处理输入值，替换连续空格
+            const processedValues = values.map(value => normalizeSpaces(value.trim()));
+            
             // 检查新数据中的地点重复
-            for (const value of values) {
-                if (value.trim().startsWith('@')) {
-                    const location = value.trim().substring(1, value.trim().indexOf(' ') > 0 ? value.trim().indexOf(' ') : value.trim().length);
+            for (const value of processedValues) {
+                if (value.startsWith('@')) {
+                    const location = value.substring(1, value.indexOf(' ') > 0 ? value.indexOf(' ') : value.length);
                     
                     // 检查新数据内部是否有重复
                     if (newLocations.has(location)) {
@@ -1471,10 +1486,10 @@
             // 没有重复地点，执行修改
             store.clear().onsuccess = () => {
                 let addedCount = 0;
-                const addItems = values.map(value => {
+                const addItems = processedValues.map(value => {
                     return new Promise((resolve) => {
-                        if (value.trim()) {
-                            const request = store.add({ value: value.trim() });
+                        if (value) {
+                            const request = store.add({ value: value });
                             request.onsuccess = () => {
                                 addedCount++;
                                 resolve();
@@ -1531,8 +1546,10 @@
 
         // 修改保存编辑的事件处理
         saveEditButton.addEventListener('click', () => {
-            const newItem = editInput.value.trim();
+            let newItem = editInput.value.trim();
             if (newItem) {
+                // 处理连续空格
+                newItem = normalizeSpaces(newItem);
                 updateItem(currentEditIndex, newItem);
                 editInput.value = '';
                 editModal.style.display = 'none';
@@ -1566,6 +1583,9 @@
                     const newLocations = new Set();
                     const duplicateLocations = [];
                     
+                    // 处理输入值，替换连续空格
+                    const processedValues = values.map(value => normalizeSpaces(value.trim()));
+                    
                     // 收集现有的地点
                     existingItems.forEach(item => {
                         if (item.startsWith('@')) {
@@ -1575,9 +1595,9 @@
                     });
                     
                     // 检查新数据中的地点是否有重复
-                    for (const value of values) {
-                        if (value.trim().startsWith('@')) {
-                            const location = value.trim().substring(1, value.trim().indexOf(' ') > 0 ? value.trim().indexOf(' ') : value.trim().length);
+                    for (const value of processedValues) {
+                        if (value.startsWith('@')) {
+                            const location = value.substring(1, value.indexOf(' ') > 0 ? value.indexOf(' ') : value.length);
                             
                             // 检查是否与现有地点重复
                             if (existingLocations.has(location)) {
@@ -1604,10 +1624,10 @@
                     
                     // 没有重复地点，执行导入
                     let addedCount = 0;
-                    const addItems = values.map(value => {
+                    const addItems = processedValues.map(value => {
                         return new Promise((resolve) => {
-                if (value.trim()) {
-                                const request = store.add({ value: value.trim() });
+                if (value) {
+                                const request = store.add({ value: value });
                                 request.onsuccess = () => {
                                     addedCount++;
                                     resolve();
