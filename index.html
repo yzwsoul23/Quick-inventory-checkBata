@@ -1957,7 +1957,17 @@
             const getAllRequest = store.getAll();
             
             getAllRequest.onsuccess = () => {
-                const allItems = getAllRequest.result.map(item => item.value);
+                const allDBItems = getAllRequest.result;
+                const allItems = [];
+                
+                // 正确处理数据格式
+                for (const item of allDBItems) {
+                    if (item.value !== undefined) {
+                        allItems.push(item.value);
+                    } else {
+                        console.error('找到异常数据项，没有value字段:', item);
+                    }
+                }
                 
                 // 找出当前地点及其资产在数据库中的范围
                 let startIndex = currentLocationEditIndex;
@@ -1970,29 +1980,66 @@
                 // 计算要删除的项目数
                 const deleteCount = endIndex - startIndex;
                 
+                console.log(`编辑地点位置: ${startIndex} 到 ${endIndex}, 共 ${deleteCount} 项`);
+                console.log('编辑前数据:', allItems.slice(startIndex, endIndex));
+                console.log('编辑后数据:', editedItems);
+                
                 // 清除store后重新添加数据
                 store.clear().onsuccess = () => {
-                    // 添加编辑前的数据
-                    for (let i = 0; i < startIndex; i++) {
-                        store.add(allItems[i]);
+                    try {
+                        let addedCount = 0;
+                        let errorCount = 0;
+                        
+                        // 添加编辑前的数据
+                        for (let i = 0; i < startIndex; i++) {
+                            try {
+                                store.add({ value: allItems[i] });
+                                addedCount++;
+                            } catch(e) {
+                                console.error(`添加编辑前数据出错 [${i}]:`, e);
+                                errorCount++;
+                            }
+                        }
+                        
+                        // 添加编辑后的数据
+                        for (let i = 0; i < editedItems.length; i++) {
+                            try {
+                                store.add({ value: editedItems[i] });
+                                addedCount++;
+                            } catch(e) {
+                                console.error(`添加编辑后数据出错 [${i}]:`, e);
+                                errorCount++;
+                            }
+                        }
+                        
+                        // 添加编辑后的剩余数据
+                        for (let i = endIndex; i < allItems.length; i++) {
+                            try {
+                                store.add({ value: allItems[i] });
+                                addedCount++;
+                            } catch(e) {
+                                console.error(`添加剩余数据出错 [${i}]:`, e);
+                                errorCount++;
+                            }
+                        }
+                        
+                        console.log(`数据处理完成: 成功 ${addedCount} 项, 失败 ${errorCount} 项`);
+                        
+                        transaction.oncomplete = () => {
+                            loadItems();
+                            locationEditModal.style.display = 'none';
+                            overlay.style.display = 'none';
+                            showToast('地点及其资产已更新');
+                        };
+                        
+                        transaction.onerror = (event) => {
+                            console.error('保存地点编辑事务出错:', event);
+                            showErrorToast('保存失败: ' + (event.target.error?.message || '数据库错误'));
+                        };
+                    } catch(error) {
+                        console.error('批量保存地点编辑出错:', error);
+                        showErrorToast('保存失败: ' + error.message);
                     }
-                    
-                    // 添加编辑后的数据
-                    for (let i = 0; i < editedItems.length; i++) {
-                        store.add({ value: editedItems[i] });
-                    }
-                    
-                    // 添加编辑后的剩余数据
-                    for (let i = endIndex; i < allItems.length; i++) {
-                        store.add({ value: allItems[i] });
-                    }
-                    
-                    transaction.oncomplete = () => {
-                        loadItems();
-                        locationEditModal.style.display = 'none';
-                        overlay.style.display = 'none';
-                        showToast('地点及其资产已更新');
-                    };
                 };
             };
         }
