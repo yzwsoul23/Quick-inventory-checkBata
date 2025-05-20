@@ -533,6 +533,7 @@
             border: none;
             border-radius: 50%;
             cursor: pointer;
+            display: flex;
             justify-content: center;
             align-items: center;
             font-size: 20px;
@@ -638,6 +639,33 @@
             background-color: #0056b3;
         }
 
+        /* 添加回到底部按钮样式 */
+        #scrollBottomButton {
+            position: fixed;
+            left: 20px;
+            bottom: 70px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(40, 167, 69, 0.8);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 999;
+        }
+        
+        #scrollBottomButton:hover {
+            background-color: rgba(40, 167, 69, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
         /* 添加备份模态框样式 */
         #backupModal {
             display: none;
@@ -2929,6 +2957,9 @@
         
         // 初始化时执行
         perfMonitor.init();
+        
+        // 添加回到底部按钮
+        addScrollBottomButton();
 
         // 在页面加载完成后执行的初始化函数
         window.addEventListener('DOMContentLoaded', () => {
@@ -3050,6 +3081,33 @@
             console.log('备份系统已初始化');
         }
         
+        // 添加回到底部按钮到界面
+        function addScrollBottomButton() {
+            const scrollBottomButton = document.createElement('button');
+            scrollBottomButton.id = 'scrollBottomButton';
+            scrollBottomButton.title = '回到列表底部';
+            scrollBottomButton.textContent = '↓';
+            
+            scrollBottomButton.addEventListener('mouseover', () => {
+                scrollBottomButton.style.backgroundColor = 'rgba(40, 167, 69, 1)';
+                scrollBottomButton.style.transform = 'translateY(-2px)';
+                scrollBottomButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+            });
+            
+            scrollBottomButton.addEventListener('mouseout', () => {
+                scrollBottomButton.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
+                scrollBottomButton.style.transform = '';
+                scrollBottomButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+            });
+            
+            scrollBottomButton.addEventListener('click', () => {
+                scrollToBottom();
+                showToast('已滚动到底部');
+            });
+            
+            document.body.appendChild(scrollBottomButton);
+        }
+        
         // 添加备份按钮到界面
         function addBackupButton() {
             const backupButton = document.createElement('button');
@@ -3058,8 +3116,8 @@
             backupButton.textContent = '💾';
             backupButton.style.cssText = `
                 position: fixed;
-                right: 20px;
-                bottom: 120px;
+                left: 20px;
+                bottom: 20px;
                 width: 40px;
                 height: 40px;
                 background-color: rgba(0, 123, 255, 0.8);
