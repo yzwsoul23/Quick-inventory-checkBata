@@ -982,6 +982,7 @@
         let currentEditIndex = null;
         let db;
         let isAllCollapsed = false;
+        let saveItemTimeout = null; // 添加 saveItemTimeout 变量声明
         
         const dataList = document.getElementById('dataList');
         const itemInput = document.getElementById('itemInput');
@@ -1333,12 +1334,9 @@
                         addBatch();
                         
                         transaction.oncomplete = () => {
-                            // 添加防抖
-                            if (saveItemTimeout) clearTimeout(saveItemTimeout);
-                            saveItemTimeout = setTimeout(() => {
-                                loadItems();
-                                showToast(`已删除"${items[locationIndex]}"及其所有资产`);
-                            }, 50);
+                            // 直接加载数据和显示提示，不使用防抖
+                            loadItems();
+                            showToast(`已删除"${items[locationIndex]}"及其所有资产`);
                         };
                     };
                 };
