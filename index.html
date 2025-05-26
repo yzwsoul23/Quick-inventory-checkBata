@@ -1278,69 +1278,34 @@
             // 显示删除中提示
             showToast('正在删除中...');
             
-            // 使用requestAnimationFrame确保UI更新后再执行复杂操作
-            requestAnimationFrame(() => {
-                const transaction = db.transaction(['items'], 'readwrite');
-                const store = transaction.objectStore('items');
+            // 使用事务同步处理数据
+            const transaction = db.transaction(['items'], 'readwrite');
+            const store = transaction.objectStore('items');
+            
+            // 先获取所有数据
+            const getAllRequest = store.getAll();
+            
+            getAllRequest.onsuccess = () => {
+                const allItems = getAllRequest.result;
                 
-                // 先获取所有数据
-                const getAllRequest = store.getAll();
-                
-                getAllRequest.onsuccess = () => {
-                    const allItems = getAllRequest.result;
+                // 清除store后重新添加数据，跳过要删除的部分
+                store.clear().onsuccess = () => {
+                    // 同步添加删除前的数据
+                    for (let i = 0; i < locationIndex; i++) {
+                        store.add(allItems[i]);
+                    }
                     
-                    // 清除store后重新添加数据，跳过要删除的部分
-                    store.clear().onsuccess = () => {
-                        // 分批添加数据以提高性能
-                        const batchSize = 100;
-                        let currentIndex = 0;
-                        
-                        function addBatch() {
-                            // 添加删除前的数据
-                            const endIndex = Math.min(currentIndex + batchSize, locationIndex);
-                            for (let i = currentIndex; i < endIndex; i++) {
-                                store.add(allItems[i]);
-                            }
-                            
-                            currentIndex = endIndex;
-                            
-                            // 如果还未添加完删除前的数据
-                            if (currentIndex < locationIndex) {
-                                setTimeout(addBatch, 0);
-                                return;
-                            }
-                            
-                            // 开始添加删除后的数据
-                            currentIndex = locationIndex + deleteCount;
-                            addRemainingBatch();
-                        }
-                        
-                        function addRemainingBatch() {
-                            // 添加删除后的数据
-                            const endIndex = Math.min(currentIndex + batchSize, allItems.length);
-                            for (let i = currentIndex; i < endIndex; i++) {
-                                store.add(allItems[i]);
-                            }
-                            
-                            currentIndex = endIndex;
-                            
-                            // 如果还未添加完所有数据
-                            if (currentIndex < allItems.length) {
-                                setTimeout(addRemainingBatch, 0);
-                            }
-                        }
-                        
-                        // 开始第一批添加
-                        addBatch();
-                        
-                        transaction.oncomplete = () => {
-                            // 直接加载数据和显示提示，不使用防抖
-                            loadItems();
-                            showToast(`已删除"${items[locationIndex]}"及其所有资产`);
-                        };
+                    // 同步添加删除后的数据
+                    for (let i = locationIndex + deleteCount; i < allItems.length; i++) {
+                        store.add(allItems[i]);
+                    }
+                    
+                    transaction.oncomplete = () => {
+                        loadItems();
+                        showToast(`已删除"${items[locationIndex]}"及其所有资产`);
                     };
                 };
-            });
+            };
         }
 
         // 修改 refreshList 函数，简化处理逻辑
